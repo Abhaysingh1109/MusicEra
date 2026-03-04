@@ -3,20 +3,15 @@
 
 const API_URL = 'http://localhost:3000/api';
 
+
 // DOM Elements
 const faceModal = document.getElementById('faceModal');
 const faceSetupModal = document.getElementById('faceSetupModal');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const video = document.getElementById('video');
 const faceStatus = document.getElementById('faceStatus');
-const faceLoginToggle = document.getElementById('faceLoginToggle');
-const faceLoginToggleContainer = document.getElementById('faceLoginToggleContainer');
-const faceLoginSection = document.getElementById('faceLoginSection');
-const loginDivider = document.getElementById('loginDivider');
 const enableFaceToggle = document.getElementById('enableFaceToggle');
 const setupFaceBtn = document.getElementById('setupFaceBtn');
-const faceLoginStatus = document.getElementById('faceLoginStatus');
-const faceSetupOption = document.getElementById('faceSetupOption');
 
 // Face API variables
 let faceApiLoaded = false;
@@ -83,6 +78,7 @@ async function loadFaceAPI() {
     }
 }
 
+
 // Switch between Login and Signup tabs
 function switchTab(tab) {
     const tabs = document.querySelectorAll('.tab-btn');
@@ -94,10 +90,20 @@ function switchTab(tab) {
     document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
     document.getElementById(`${tab}Form`).classList.add('active');
     
-    // Reset face login UI
-    faceLoginToggleContainer.style.display = 'none';
-    faceLoginSection.style.display = 'none';
-    loginDivider.style.display = 'block';
+    // Reset UI based on tab
+    const faceLoginSectionEl = document.getElementById('faceLoginMain');
+    const loginDividerEl = document.querySelector('.divider');
+    
+    if (tab === 'signup') {
+        // Hide face login section when on signup tab
+        if (faceLoginSectionEl) faceLoginSectionEl.style.display = 'none';
+    } else {
+        // Show face login section when on login tab
+        if (faceLoginSectionEl) faceLoginSectionEl.style.display = 'block';
+    }
+    
+    // Always show divider on login tab
+    if (loginDividerEl) loginDividerEl.style.display = 'block';
     
     // Update footer text
     const footerText = document.getElementById('footerText');
@@ -181,15 +187,21 @@ function startFaceSetup() {
     startCamera();
 }
 
+
 // Toggle face login (in login form)
 function toggleFaceLogin() {
-    if (faceLoginToggle.checked) {
-        faceLoginSection.style.display = 'block';
-        loginDivider.style.display = 'none';
+    const faceLoginToggleEl = document.getElementById('faceLoginToggle');
+    const faceLoginSectionEl = document.getElementById('faceLoginMain');
+    const loginDividerEl = document.querySelector('.divider');
+    const faceLoginStatusEl = document.getElementById('faceLoginStatus');
+    
+    if (faceLoginToggleEl && faceLoginToggleEl.checked) {
+        if (faceLoginSectionEl) faceLoginSectionEl.style.display = 'block';
+        if (loginDividerEl) loginDividerEl.style.display = 'none';
     } else {
-        faceLoginSection.style.display = 'none';
-        loginDivider.style.display = 'block';
-        faceLoginStatus.textContent = '';
+        if (faceLoginSectionEl) faceLoginSectionEl.style.display = 'none';
+        if (loginDividerEl) loginDividerEl.style.display = 'block';
+        if (faceLoginStatusEl) faceLoginStatusEl.textContent = '';
     }
 }
 
@@ -350,7 +362,8 @@ async function detectFace() {
                             
                             const data = await response.json();
                             
-                            if (data.success) {
+
+                                if (data.success) {
                                 updateFaceStatus('success', 'Face ID enabled successfully!');
                                 setTimeout(() => {
                                     closeFaceModal();
@@ -358,7 +371,11 @@ async function detectFace() {
                                     // Switch to login
                                     switchTab('login');
                                     // Show face login option
-                                    faceLoginToggleContainer.style.display = 'block';
+                                    const faceLoginToggleEl = document.getElementById('faceLoginToggle');
+                                    if (faceLoginToggleEl) {
+                                        const container = faceLoginToggleEl.closest('.face-login-toggle-container');
+                                        if (container) container.style.display = 'block';
+                                    }
                                 }, 1500);
                             } else {
                                 updateFaceStatus('error', data.message || 'Failed to save face data');
@@ -385,14 +402,20 @@ async function detectFace() {
                             
                             const data = await response.json();
                             
+
                             if (data.success) {
                                 updateFaceStatus('success', 'Face ID enabled successfully!');
                                 setTimeout(() => {
                                     closeFaceModal();
                                     alert('Face ID has been enabled for your account!');
                                     // Show face login toggle
-                                    faceLoginToggleContainer.style.display = 'block';
-                                    if (faceSetupOption) faceSetupOption.style.display = 'none';
+                                    const faceLoginToggleEl = document.getElementById('faceLoginToggle');
+                                    const faceSetupOptionEl = document.getElementById('faceSetupOption');
+                                    if (faceLoginToggleEl) {
+                                        const container = faceLoginToggleEl.closest('.face-login-toggle-container');
+                                        if (container) container.style.display = 'block';
+                                    }
+                                    if (faceSetupOptionEl) faceSetupOptionEl.style.display = 'none';
                                 }, 1500);
                             } else {
                                 updateFaceStatus('error', data.message || 'Failed to save face data');
@@ -476,8 +499,10 @@ function updateFaceStatus(status, message) {
 document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
+
     // Check if face login is enabled
-    if (faceLoginToggle && faceLoginToggle.checked) {
+    const faceLoginToggleEl = document.getElementById('faceLoginToggle');
+    if (faceLoginToggleEl && faceLoginToggleEl.checked) {
         alert('Please use Face ID to login, or turn off the toggle to use email/password');
         return;
     }
@@ -506,14 +531,24 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
                 hasFace: data.user.hasFace
             }));
             
+
             // Check if user has face registered, show toggle
+            const faceLoginToggleEl = document.getElementById('faceLoginToggle');
+            const faceSetupOptionEl = document.getElementById('faceSetupOption');
+            
             if (data.user.hasFace) {
-                faceLoginToggleContainer.style.display = 'block';
-                if (faceSetupOption) faceSetupOption.style.display = 'none';
+                if (faceLoginToggleEl) {
+                    const container = faceLoginToggleEl.closest('.face-login-toggle-container');
+                    if (container) container.style.display = 'block';
+                }
+                if (faceSetupOptionEl) faceSetupOptionEl.style.display = 'none';
             } else {
                 // Show option to set up face for users without face data
-                if (faceSetupOption) faceSetupOption.style.display = 'block';
-                faceLoginToggleContainer.style.display = 'none';
+                if (faceSetupOptionEl) faceSetupOptionEl.style.display = 'block';
+                if (faceLoginToggleEl) {
+                    const container = faceLoginToggleEl.closest('.face-login-toggle-container');
+                    if (container) container.style.display = 'none';
+                }
             }
             
             // Redirect to dashboard
