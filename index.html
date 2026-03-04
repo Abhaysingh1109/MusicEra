@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusicEra - Login & Signup</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- Face API.js for Face Recognition -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <div class="auth-page">
+        <!-- Left Side - Form -->
+        <div class="auth-container">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-record-vinyl"></i>
+                </div>
+                <h1>MusicEra</h1>
+                <p>Discover the evolution of music</p>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="login" onclick="switchTab('login')">Login</button>
+                <button class="tab-btn" data-tab="signup" onclick="switchTab('signup')">Sign Up</button>
+            </div>
+            
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form active">
+                <div class="form-header">
+                    <h3>Welcome Back</h3>
+                    <p>Login to your account</p>
+                </div>
+                
+                <!-- Face Login Section (main login method) -->
+                <div class="face-login-main" id="faceLoginMain">
+                    <button type="button" class="btn-face-login" onclick="startFaceLogin()">
+                        <i class="fas fa-face-smile"></i>
+                        <span>Login with Face ID</span>
+                    </button>
+                    <p class="hint">Secure face recognition login</p>
+                </div>
+                
+                <div class="divider">
+                    <span>or</span>
+                </div>
+                
+                <!-- Fallback: Manual Login (hidden by default) -->
+                <div class="manual-login-toggle">
+                    <button type="button" class="btn-manual-toggle" onclick="toggleManualLogin()">
+                        <span>Having trouble? Login with email</span>
+                        <i class="fas fa-chevron-down" id="manualToggleIcon"></i>
+                    </button>
+                </div>
+                
+                <!-- Manual Login Fields (hidden by default) -->
+                <div class="manual-login-fields" id="manualLoginFields" style="display: none;">
+                    <div class="form-group">
+                        <label>
+                            <i class="fas fa-envelope"></i> Email
+                        </label>
+                        <input type="email" id="loginEmail" placeholder="Enter your email" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <i class="fas fa-lock"></i> Password
+                        </label>
+                        <div class="password-input">
+                            <input type="password" id="loginPassword" placeholder="Enter your password" required>
+                            <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-options">
+                        <label class="remember-me">
+                            <input type="checkbox">
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" class="forgot-link">Forgot password?</a>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn-submit" id="loginSubmitBtn" style="display: none;">Login</button>
+            </form>
+            
+            <!-- Signup Form -->
+            <form id="signupForm" class="auth-form">
+                <div class="form-header">
+                    <h3>Create Account</h3>
+                    <p>Join the music revolution</p>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <i class="fas fa-user"></i> Full Name
+                    </label>
+                    <input type="text" id="signupName" placeholder="Enter your full name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <i class="fas fa-envelope"></i> Email
+                    </label>
+                    <input type="email" id="signupEmail" placeholder="Enter your email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <i class="fas fa-lock"></i> Password
+                    </label>
+                    <div class="password-input">
+                        <input type="password" id="signupPassword" placeholder="Create a password" required>
+                        <button type="button" class="toggle-password" onclick="togglePassword('signupPassword')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="password-strength">
+                        <div class="strength-bar">
+                            <div class="strength-fill" id="strengthFill"></div>
+                        </div>
+                        <span class="strength-text" id="strengthText"></span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <i class="fas fa-lock"></i> Confirm Password
+                    </label>
+                    <div class="password-input">
+                        <input type="password" id="signupConfirmPassword" placeholder="Confirm your password" required>
+                        <button type="button" class="toggle-password" onclick="togglePassword('signupConfirmPassword')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <label class="terms-checkbox">
+                    <input type="checkbox" id="termsCheckbox" required>
+                    <span>I agree to the <a href="#">Terms</a> and <a href="#">Privacy Policy</a></span>
+                </label>
+                
+                <button type="submit" class="btn-submit">Create Account</button>
+            </form>
+            
+            <!-- Face Setup Modal (shown after successful signup) -->
+            <div class="face-setup-modal" id="faceSetupModal">
+                <div class="face-setup-content">
+                    <div class="face-setup-icon">
+                        <i class="fas fa-face-smile"></i>
+                    </div>
+                    <h3>Enable Face Login?</h3>
+                    <p>Would you like to enable quick and secure face recognition login for your account?</p>
+                    
+                    <div class="face-setup-toggle">
+                        <span>Enable Face ID</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="enableFaceToggle" onchange="toggleFaceSetup()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="face-setup-buttons">
+                        <button type="button" class="btn-skip" onclick="skipFaceSetup()">Skip for now</button>
+                        <button type="button" class="btn-setup-face" id="setupFaceBtn" onclick="startFaceSetup()" disabled>Set up Face ID</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-footer">
+                <p id="footerText">Welcome back! Please login to continue.</p>
+            </div>
+        </div>
+        
+        <!-- Right Side - Decoration -->
+        <div class="decoration-side">
+            <div class="vinyl-record">
+                <div class="vinyl-inner"></div>
+                <div class="vinyl-label"></div>
+            </div>
+            <div class="decoration-text">
+                <h2>Your Face is Your Password</h2>
+                <p>Secure, fast, and password-free login with advanced facial recognition</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Face Recognition Modal -->
+    <div class="modal-overlay" id="faceModal">
+        <div class="face-modal-container">
+            <button class="modal-close" onclick="closeFaceModal()">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <div class="face-modal-content">
+                <div class="face-icon">
+                    <i class="fas fa-face-smile"></i>
+                </div>
+                <h3 id="faceModalTitle">Face Recognition</h3>
+                <p id="faceModalDesc">Position your face in the frame</p>
+                
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline></video>
+                    <div class="face-overlay">
+                        <div class="face-frame"></div>
+                    </div>
+                    <div class="scan-line"></div>
+                </div>
+                
+                <div class="face-status" id="faceStatus">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Initializing camera...</span>
+                </div>
+                
+                <button type="button" class="btn-cancel" onclick="closeFaceModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader">
+            <div class="loader-icon">
+                <i class="fas fa-music"></i>
+            </div>
+            <p>Loading Face Recognition...</p>
+        </div>
+    </div>
+</body>
+</html>
+

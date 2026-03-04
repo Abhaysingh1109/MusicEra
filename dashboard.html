@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusicEra - Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .dashboard-page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .welcome-card {
+            background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+            border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+            border-radius: 24px;
+            padding: 60px 80px;
+            max-width: 600px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .welcome-icon {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--primary, #6366f1), var(--secondary, #ec4899));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            font-size: 2.5rem;
+            color: white;
+        }
+
+        .welcome-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, var(--primary, #6366f1), var(--secondary, #ec4899));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-subtitle {
+            font-size: 1.2rem;
+            color: var(--muted, #94a3b8);
+            margin-bottom: 40px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 14px;
+        }
+
+        .user-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary, #6366f1), var(--secondary, #ec4899));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .user-details {
+            text-align: left;
+        }
+
+        .user-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--light, #f8fafc);
+        }
+
+        .user-email {
+            font-size: 0.9rem;
+            color: var(--muted, #94a3b8);
+        }
+
+        .dashboard-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-dashboard {
+            padding: 16px 32px;
+            border: none;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary, #6366f1), var(--secondary, #ec4899));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.35);
+        }
+
+        .btn-secondary {
+            background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+            border: 2px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+            color: var(--light, #f8fafc);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary, #6366f1);
+        }
+
+        .face-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(16, 185, 129, 0.2);
+            border-radius: 50px;
+            color: #34d399;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-page">
+        <div class="welcome-card">
+            <div class="welcome-icon">
+                <i class="fas fa-music"></i>
+            </div>
+            <h1 class="welcome-title">Welcome, <span id="userName">User</span>!</h1>
+            <p class="welcome-subtitle">You've successfully logged in to MusicEra</p>
+            
+            <div class="user-info">
+                <div class="user-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="user-details">
+                    <div class="user-name" id="displayName">User Name</div>
+                    <div class="user-email" id="userEmail">user@email.com</div>
+                    <div class="face-badge" id="faceBadge" style="display: none;">
+                        <i class="fas fa-face-smile"></i>
+                        Face ID Enabled
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dashboard-actions">
+                <button class="btn-dashboard btn-primary" onclick="exploreMusic()">
+                    <i class="fas fa-compass"></i>
+                    Explore Music
+                </button>
+                <button class="btn-dashboard btn-secondary" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Logout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get user data from sessionStorage
+        const userData = JSON.parse(sessionStorage.getItem('userData') || '{}');
+        
+        if (!userData.name) {
+            // No user data, redirect to login
+            window.location.href = 'index.html';
+        }
+        
+        // Display user info
+        document.getElementById('userName').textContent = userData.name.split(' ')[0];
+        document.getElementById('displayName').textContent = userData.name;
+        document.getElementById('userEmail').textContent = userData.email;
+        
+        // Show face badge if enabled
+        if (userData.hasFace) {
+            document.getElementById('faceBadge').style.display = 'inline-flex';
+        }
+        
+        function exploreMusic() {
+            alert('Explore Music feature coming soon!');
+        }
+        
+        function logout() {
+            sessionStorage.removeItem('userData');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
+
