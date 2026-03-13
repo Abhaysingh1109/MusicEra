@@ -159,19 +159,37 @@ function playTrack(id, title, url, type) {
     if (type === 'youtube' || type === 'mp4') {
         updatePlayerIframe(id, title);
     } else {
-        // FreeSound MP3 - native audio player
+        // FreeSound MP3 - native audio player (no overlay, bottom position)
         updateAudioPlayer(url, title);
     }
     
-    playerContainer.scrollIntoView({ behavior: 'smooth' });
+    if (type === 'mp4' || type === 'youtube') {
+        showOverlay();
+    }
     showNotification(`Now playing: ${truncateText(title, 30)}`, 'success');
 }
 
+function showOverlay() {
+    playerContainer.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeOverlay() {
+    playerContainer.classList.remove('active');
+    document.body.style.overflow = '';
+    clearPlayer();
+}
+
+window.closeOverlay = closeOverlay; // Global for onclick
+
 function updatePlayerIframe(videoId, title) {
     playerContainer.innerHTML = `
-        <iframe width="100%" height="350" src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0" 
+        <button class="player-overlay-close" onclick="closeOverlay()">
+            <i class="fas fa-times"></i>
+        </button>
+        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1" 
                 title="${title}" frameborder="0" allowfullscreen 
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen">
         </iframe>
     `;
 }
@@ -180,7 +198,7 @@ function updateAudioPlayer(url, title) {
     playerContainer.innerHTML = `
         <div class="spotify-player">
             <div class="player-artwork">
-                <img src="${currentResults.find(r => r.id === currentPlayerVideoId)?.thumbnail || '/placeholder-audio.jpg'}" alt="${title}" id="audioArtwork">
+                <img src="${currentResults.find(r => r.id === currentPlayerVideoId)?.thumbnail || (currentFormat === 'mp3' ? '/audio.svg' : currentResults.find(r => r.id === currentPlayerVideoId)?.thumbnail || '/placeholder-audio.svg')}" alt="${title}" id="audioArtwork" onerror="this.src='/audio.svg'">
             </div>
             <div class="player-info">
                 <h3 id="audioTitle">${truncateText(title, 40)}</h3>

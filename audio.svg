@@ -1,0 +1,17 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <ellipse cx="100" cy="170" rx="65" ry="12" fill="#D8D8D8" opacity="0.6" />
+
+  <path d="M50 70 L100 45 L150 70 L150 130 L100 155 L50 130 Z" fill="#59191A" />
+  
+  <path d="M100 155 L150 130 L150 70 L100 95 Z" fill="#3D1112" />
+  
+  <path d="M50 70 L100 45 L150 70 L100 95 Z" fill="#7A2224" />
+
+  <g fill="none" stroke="white" stroke-width="6" stroke-linecap="round">
+    <line x1="85" y1="92" x2="85" y2="108" opacity="0.7" />
+    <line x1="100" y1="82" x2="100" y2="118" />
+    <line x1="115" y1="96" x2="115" y2="104" opacity="0.7" />
+  </g>
+  
+  <path d="M50 70 L100 95 L150 70" stroke="white" stroke-width="1.5" fill="none" opacity="0.15" />
+</svg>
