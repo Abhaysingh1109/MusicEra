@@ -156,39 +156,83 @@
     </style>
 </head>
 <body>
-    <div class="dashboard-page">
-        <div class="welcome-card">
-            <div class="welcome-icon">
-                <i class="fas fa-music"></i>
-            </div>
-            <h1 class="welcome-title">Welcome, <span id="userName">User</span>!</h1>
-            <p class="welcome-subtitle">You've successfully logged in to MusicEra</p>
-            
-            <div class="user-info">
-                <div class="user-avatar">
-                    <i class="fas fa-user"></i>
+<div class="dashboard-container">
+        <!-- Welcome Header
+        <header class="dashboard-header">
+            <div class="welcome-card">
+                <div class="welcome-icon">
+                    <i class="fas fa-music"></i>
                 </div>
-                <div class="user-details">
-                    <div class="user-name" id="displayName">User Name</div>
-                    <div class="user-email" id="userEmail">user@email.com</div>
-                    <div class="face-badge" id="faceBadge" style="display: none;">
-                        <i class="fas fa-face-smile"></i>
-                        Face ID Enabled
+                <h1 class="welcome-title">Welcome, <span id="userName">User</span>!</h1>
+                <p class="welcome-subtitle">Discover your favorite music with MusicEra</p>
+                
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name" id="displayName">User Name</div>
+                        <div class="user-email" id="userEmail">user@email.com</div>
+                        <div class="face-badge" id="faceBadge" style="display: none;">
+                            <i class="fas fa-face-smile"></i> Face ID Enabled
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="dashboard-actions">
-                <button class="btn-dashboard btn-primary" onclick="exploreMusic()">
-                    <i class="fas fa-compass"></i>
-                    Explore Music
-                </button>
-                <button class="btn-dashboard btn-secondary" onclick="logout()">
-                    <i class="fas fa-sign-out-alt"></i>
-                    Logout
-                </button>
+        </header>
+
+        <!-- Music Search Section -->
+        <main class="music-search-section">
+            <div class="search-hero">
+                <h2 class="search-title">Search Any Song</h2>
+<div class="format-toggle">
+                        <button id="mp4Btn" class="format-btn active">
+                            <i class="fas fa-video"></i> MP4 Video
+                        </button>
+                        <button id="mp3Btn" class="format-btn">
+                            <i class="fas fa-music"></i> MP3 Audio
+                        </button>
+                    </div>
+                    <div class="search-container">
+                        <div class="search-box">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" id="musicSearchInput" placeholder="Search for songs, artists, albums... (e.g. 'Shape of You')">
+                            <button id="searchBtn" class="search-btn">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button id="clearSearch" class="clear-btn">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                    </div>
             </div>
-        </div>
+
+            <!-- Results Header -->
+            <div class="results-header">
+                <span id="resultsCount">0 results</span>
+            </div>
+
+            <!-- Search Results -->
+            <div id="searchResults" class="search-results"></div>
+            <div id="noResultsMsg" class="no-results" style="display: none;">
+                <i class="fas fa-search"></i>
+                <h3>No songs found</h3>
+                <p>Try searching for a different song or artist</p>
+            </div>
+
+            <!-- YouTube Player -->
+<div id="youtubePlayer" class="player-container">
+    <link rel="stylesheet" href="spotify-player.css">
+</div>
+        </main>
+
+        <!-- Logout Button Fixed -->
+        <button class="logout-btn" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i>
+        </button>
     </div>
 
     <script>
@@ -200,18 +244,20 @@
             window.location.href = 'index.html';
         }
         
-        // Display user info
-        document.getElementById('userName').textContent = userData.name.split(' ')[0];
-        document.getElementById('displayName').textContent = userData.name;
-        document.getElementById('userEmail').textContent = userData.email;
+        // Display user info (defensive - elements may be commented out)
+        const userNameEl = document.getElementById('userName');
+        if (userNameEl) userNameEl.textContent = userData.name.split(' ')[0];
+        
+        const displayNameEl = document.getElementById('displayName');
+        if (displayNameEl) displayNameEl.textContent = userData.name;
+        
+        const userEmailEl = document.getElementById('userEmail');
+        if (userEmailEl) userEmailEl.textContent = userData.email;
         
         // Show face badge if enabled
-        if (userData.hasFace) {
-            document.getElementById('faceBadge').style.display = 'inline-flex';
-        }
-        
-        function exploreMusic() {
-            alert('Explore Music feature coming soon!');
+        const faceBadgeEl = document.getElementById('faceBadge');
+        if (userData.hasFace && faceBadgeEl) {
+            faceBadgeEl.style.display = 'inline-flex';
         }
         
         function logout() {
@@ -219,6 +265,9 @@
             window.location.href = 'index.html';
         }
     </script>
+    
+    <!-- Dashboard JS -->
+    <script src="dashboard.js" defer></script>
 </body>
 </html>
-
+ -->
