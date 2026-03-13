@@ -45,6 +45,11 @@ function debounce(func, wait) {
 }
 
 let currentFormat = 'mp4'; // Default
+let currentPage = 1;
+let hasMore = true;
+let loadingMore = false;
+let infiniteObserver = null;
+let currentQuery = '';
 
 // Add format toggle elements
 const formatToggle = document.getElementById('formatToggle');
@@ -61,27 +66,43 @@ function setFormat(format) {
     resultsCount.textContent = `0 ${format.toUpperCase()} results`;
 }
 
-async function handleSearch() {
+async function handleSearch(isLoadMore = false) {
     const query = searchInput.value.trim();
     if (!query) {
         showNotification('Please enter a search term', 'warning');
         return;
     }
 
-    showLoading(true);
+    if (isLoadMore) {
+        showLoadMoreSpinner(true);
+    } else {
+        showLoading(true);
+    }
+
     try {
+        const body = { query, format: currentFormat, page: isLoadMore ? currentPage : 1 };
         const response = await fetch(`${API_URL}/search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, format: currentFormat })
+            body: JSON.stringify(body)
         });
 
         const data = await response.json();
         
         if (data.success) {
-            currentResults = data.results;
+            if (isLoadMore) {
+                currentResults = [...currentResults, ...data.results];
+                hasMore = data.hasMore || data.results.length === 20;
+                showLoadMoreSpinner(false);
+            } else {
+                currentResults = data.results;
+                currentPage = 1;
+                hasMore = data.hasMore || data.results.length === 20;
+                currentQuery = query;
+            }
             renderResults();
             clearPlayer();
+            initInfiniteScroll();
         } else {
             showNotification(data.message || 'Search failed', 'error');
         }
@@ -89,7 +110,10 @@ async function handleSearch() {
         console.error('Search error:', error);
         showNotification('Server connection error', 'error');
     } finally {
-        showLoading(false);
+        if (!isLoadMore) {
+            showLoading(false);
+        }
+        loadingMore = false;
     }
 }
 
@@ -97,14 +121,14 @@ function renderResults() {
     if (currentResults.length === 0) {
         searchResults.innerHTML = '';
         noResultsMsg.style.display = 'block';
-        resultsCount.textContent = `0 ${currentFormat.toUpperCase()} results`;
+        if (resultsCount) resultsCount.textContent = `0 ${currentFormat.toUpperCase()} results`;
         return;
     }
 
     noResultsMsg.style.display = 'none';
-    resultsCount.textContent = `${currentResults.length} ${currentFormat.toUpperCase()} results`;
+    if (resultsCount) resultsCount.textContent = `${currentResults.length} ${currentFormat.toUpperCase()} results`;
 
-    searchResults.innerHTML = currentResults.map((video, index) => `
+    const html = currentResults.map((video, index) => `
         <div class="music-card" onclick="playVideo('${video.id || video.videoId}', '${video.title}')">
             <div class="card-thumbnail">
                 <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
@@ -119,7 +143,9 @@ function renderResults() {
         </div>
     `).join('');
 
-    // Animate results
+    searchResults.innerHTML = html;
+
+    // Animate new results
     const cards = document.querySelectorAll('.music-card');
     cards.forEach((card, index) => {
         card.style.animationDelay = `${index * 0.05}s`;
@@ -247,7 +273,7 @@ function clearSearch() {
     searchResults.innerHTML = '';
     playerContainer.innerHTML = '';
     noResultsMsg.style.display = 'none';
-    resultsCount.textContent = '0 results';
+    if (resultsCount) resultsCount.textContent = `0 ${currentFormat.toUpperCase()} results`;
     currentPlayerVideoId = null;
 }
 
@@ -299,13 +325,71 @@ function showNotification(message, type = 'info') {
 }
 
 function onSearchInput() {
-    if (searchInput.value.trim()) {
-        clearBtn.style.opacity = '1';
-        clearBtn.style.pointerEvents = 'auto';
+    const query = searchInput.value.trim();
+    
+    // Show/hide clear button
+    if (query) {
+        if (clearBtn) {
+            clearBtn.style.opacity = '1';
+            clearBtn.style.pointerEvents = 'auto';
+        }
+        // Trigger live search if query is long enough (min 2 chars to reduce API calls)
+        if (query.length >= 2) {
+            handleSearch();
+        }
     } else {
-        clearBtn.style.opacity = '0.5';
-        clearBtn.style.pointerEvents = 'none';
+        // Clear results when input is empty
+        if (clearBtn) {
+            clearBtn.style.opacity = '0.5';
+            clearBtn.style.pointerEvents = 'none';
+        }
+        currentResults = [];
+        currentPage = 1;
+        hasMore = true;
+        renderResults();
+        clearPlayer();
+        if (infiniteObserver) {
+            infiniteObserver.disconnect();
+            infiniteObserver = null;
+        }
+    }
+}
+
+function initInfiniteScroll() {
+    if (infiniteObserver) {
+        infiniteObserver.disconnect();
+    }
+
+    const sentinel = document.createElement('div');
+    sentinel.id = 'load-more-sentinel';
+    sentinel.className = 'load-more-sentinel';
+    sentinel.innerHTML = '<div class="load-more-spinner" style="display: none;"><i class="fas fa-spinner fa-spin"></i> Loading more...</div>';
+    searchResults.appendChild(sentinel);
+
+    infiniteObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && hasMore && !loadingMore && currentQuery === searchInput.value.trim()) {
+                loadMore();
+            }
+        });
+    }, { threshold: 0.1 });
+
+    infiniteObserver.observe(sentinel);
+}
+
+async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    loadingMore = true;
+    currentPage++;
+    await handleSearch(true); // isLoadMore = true
+}
+
+function showLoadMoreSpinner(show) {
+    const spinner = document.querySelector('.load-more-spinner');
+    if (spinner) {
+        spinner.style.display = show ? 'block' : 'none';
     }
 }
 
 // Global playVideo already defined earlier
+

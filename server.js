@@ -424,74 +424,68 @@ async function startServer() {
 
 // Universal Search API - YouTube (MP4) / FreeSound (MP3)
 app.post('/api/search', async (req, res) => {
-    const { query, format = 'mp4' } = req.body;
+    const { query, format = 'mp4', page = 1 } = req.body;
+    const perPage = 20;
     if (!query || query.trim().length === 0) return res.status(400).json({success:false, message:'Query required'});
     
     try {
-        let results = [];
+        let allResults = [];
         
         if (format === 'mp4') {
-            // YouTube videos
-            const ytKey = process.env.YOUTUBE_API_KEY;
+            // YouTube videos - fetch more for pagination support
+            const ytKey = process.env.YOUTUBE_API_KEY || 'demo'; // Fallback for no key
+            const maxResults = Math.min(perPage * 3, 50); // Max YouTube allows ~50
             const {data} = await axios.get('https://youtube.googleapis.com/youtube/v3/search', {
                 params: {
                     part: 'snippet',
                     q: query.trim(),
                     type: 'video',
                     videoCategoryId: '10',
-                    maxResults: 20,
+                    maxResults,
                     key: ytKey
                 }
             });
-            results = data.items.map(i => ({
+            allResults = data.items.map(i => ({
                 id: i.id.videoId,
                 title: i.snippet.title,
                 artist: i.snippet.channelTitle,
                 thumbnail: i.snippet.thumbnails.medium.url,
-                url: `https://youtube.googleapis.com/youtube/v3/videos?id=${i.id.videoId}`,
+                url: `https://www.youtube.com/watch?v=${i.id.videoId}`,
                 type: 'youtube',
                 format
             }));
         } else {
-            // FreeSound MP3 audio (requires FREESOUND_CLIENT_ID in .env)
-            const fsId = process.env.FREESOUND_CLIENT_ID;
-            // Demo MP3 results (no FreeSound key needed)
-            const demoMp3s = [
-                {
-                    id: 'demo1',
-                    title: `${query} Relax (Demo MP3)`,
-                    artist: 'MusicEra Demo',
+            // Demo MP3 - infinite pagination
+            const demoMp3s = [];
+            for (let i = 1; i <= perPage; i++) {
+                demoMp3s.push({
+                    id: `demo${(page-1)*perPage + i}`,
+                    title: `${query} Track ${i} (Demo MP3)`,
+                    artist: `Artist ${(page-1)*perPage + i}`,
                     thumbnail: '/placeholder-audio.jpg',
-                    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Public CC0
+                    url: `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${((page-1)*perPage + i) % 16 + 1}.mp3`,
                     type: 'freesound',
                     format: 'mp3',
-                    duration: '2:34'
-                },
-                {
-                    id: 'demo2',
-                    title: `${query} Chill (Demo MP3)`,
-                    artist: 'MusicEra Demo',
-                    thumbnail: '/placeholder-audio.jpg',
-                    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-                    type: 'freesound',
-                    format: 'mp3',
-                    duration: '3:12'
-                },
-                {
-                    id: 'demo3',
-                    title: `${query} Groove (Demo MP3)`,
-                    artist: 'MusicEra Demo',
-                    thumbnail: '/placeholder-audio.jpg',
-                    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-                    type: 'freesound',
-                    format: 'mp3',
-                    duration: '2:58'
-                }
-            ];
-            results = demoMp3s;
+                    duration: `${Math.floor(Math.random()*4)+2}:${Math.floor(Math.random()*60).toString().padStart(2,'0')}`
+                });
+            }
+            allResults = demoMp3s;
         }
         
-        res.json({success: true, results, format, source: format === 'mp4' ? 'YouTube' : 'FreeSound'});
+        // Paginate
+        const startIdx = (page - 1) * perPage;
+        const paginatedResults = allResults.slice(startIdx, startIdx + perPage);
+        const hasMore = allResults.length > startIdx + perPage;
+        
+        res.json({
+            success: true, 
+            results: paginatedResults, 
+            page,
+            hasMore,
+            totalFetched: allResults.length,
+            format, 
+            source: format === 'mp4' ? 'YouTube' : 'FreeSound'
+        });
     } catch(e) {
         console.error(`[${format}] Search error:`, e.message);
         res.status(500).json({success:false, message: `${format.toUpperCase()} search failed`});
