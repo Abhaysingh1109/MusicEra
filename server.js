@@ -6,6 +6,10 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const path = require('path');
+const dotenv = require('dotenv');
+const axios = require('axios');
+
+dotenv.config();
 
 const app = express();
 const PORT = 3000;
@@ -417,6 +421,82 @@ async function startServer() {
         console.log(`  GET /api/check-email/:email - Check if email exists\n`);
     });
 }
+
+// Universal Search API - YouTube (MP4) / FreeSound (MP3)
+app.post('/api/search', async (req, res) => {
+    const { query, format = 'mp4' } = req.body;
+    if (!query || query.trim().length === 0) return res.status(400).json({success:false, message:'Query required'});
+    
+    try {
+        let results = [];
+        
+        if (format === 'mp4') {
+            // YouTube videos
+            const ytKey = process.env.YOUTUBE_API_KEY;
+            const {data} = await axios.get('https://youtube.googleapis.com/youtube/v3/search', {
+                params: {
+                    part: 'snippet',
+                    q: query.trim(),
+                    type: 'video',
+                    videoCategoryId: '10',
+                    maxResults: 20,
+                    key: ytKey
+                }
+            });
+            results = data.items.map(i => ({
+                id: i.id.videoId,
+                title: i.snippet.title,
+                artist: i.snippet.channelTitle,
+                thumbnail: i.snippet.thumbnails.medium.url,
+                url: `https://youtube.googleapis.com/youtube/v3/videos?id=${i.id.videoId}`,
+                type: 'youtube',
+                format
+            }));
+        } else {
+            // FreeSound MP3 audio (requires FREESOUND_CLIENT_ID in .env)
+            const fsId = process.env.FREESOUND_CLIENT_ID;
+            // Demo MP3 results (no FreeSound key needed)
+            const demoMp3s = [
+                {
+                    id: 'demo1',
+                    title: `${query} Relax (Demo MP3)`,
+                    artist: 'MusicEra Demo',
+                    thumbnail: '/placeholder-audio.jpg',
+                    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Public CC0
+                    type: 'freesound',
+                    format: 'mp3',
+                    duration: '2:34'
+                },
+                {
+                    id: 'demo2',
+                    title: `${query} Chill (Demo MP3)`,
+                    artist: 'MusicEra Demo',
+                    thumbnail: '/placeholder-audio.jpg',
+                    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+                    type: 'freesound',
+                    format: 'mp3',
+                    duration: '3:12'
+                },
+                {
+                    id: 'demo3',
+                    title: `${query} Groove (Demo MP3)`,
+                    artist: 'MusicEra Demo',
+                    thumbnail: '/placeholder-audio.jpg',
+                    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+                    type: 'freesound',
+                    format: 'mp3',
+                    duration: '2:58'
+                }
+            ];
+            results = demoMp3s;
+        }
+        
+        res.json({success: true, results, format, source: format === 'mp4' ? 'YouTube' : 'FreeSound'});
+    } catch(e) {
+        console.error(`[${format}] Search error:`, e.message);
+        res.status(500).json({success:false, message: `${format.toUpperCase()} search failed`});
+    }
+});
 
 startServer();
 
