@@ -198,8 +198,7 @@ function updateAudioPlayer(url, title) {
     playerContainer.innerHTML = `
         <div class="spotify-player">
             <div class="player-artwork">
-                <img src="${currentResults.find(r => r.id === currentPlayerVideoId)?.thumbnail || (currentFormat === 'mp3' ? '/audio.svg' : currentResults.find(r => r.id === currentPlayerVideoId)?.thumbnail || '/placeholder-audio.svg')}" alt="${title}" id="audioArtwork" onerror="this.src='/audio.svg'">
-            </div>
+                <img src="${currentResults.find(r => r.id === currentPlayerVideoId)?.thumbnail || '/audio.svg'}" alt="${title}" id="audioArtwork" onerror="this.src='/audio.svg'">\n            </div>
             <div class="player-info">
                 <h3 id="audioTitle">${truncateText(title, 40)}</h3>
                 <p id="audioArtist">${currentResults.find(r => r.id === currentPlayerVideoId)?.artist || 'Unknown Artist'}</p>
