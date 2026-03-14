@@ -147,11 +147,18 @@ function renderResults() {
   const html = currentResults
     .map(
       (video, index) => `
-        <div class="music-card" onclick="playVideo('${video.id || video.videoId}', '${video.title}')">
+        <div class="music-card" data-video-id="${video.id || video.videoId}" onclick="toggleInlinePlay('${video.id || video.videoId}')">
             <div class="card-thumbnail">
                 <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
                 <div class="play-overlay">
                     <i class="fas fa-${currentFormat === "mp4" ? "play" : "music"}"></i>
+                </div>
+                <div class="mini-player" style="display: none;">
+                    <button class="mini-play-btn"><i class="fas fa-pause"></i></button>
+                    <div class="mini-progress">
+                        <div class="mini-progress-fill"></div>
+                    </div>
+                    <span class="mini-time">0:00</span>
                 </div>
             </div>
             <div class="card-info">
@@ -179,13 +186,13 @@ function playTrack(id, title, url, type) {
   if (type === "youtube" || type === "mp4") {
     updatePlayerIframe(id, title);
   } else {
-    // FreeSound MP3 - native audio player (no overlay, bottom position)
+    // MP3 - native audio player with overlay
     updateAudioPlayer(url, title);
   }
 
-  if (type === "mp4" || type === "youtube") {
-    showOverlay();
-  }
+  // Always show overlay for all media types
+  showOverlay();
+
   showNotification(`Now playing: ${truncateText(title, 30)}`, "success");
 }
 
@@ -295,6 +302,17 @@ function updateAudioPlayer(url, title) {
     volumeIcon.className =
       audio.volume === 0 ? "fas fa-volume-mute" : "fas fa-volume-up";
   });
+
+  // Auto-play + handle modern browser autoplay policy
+  audio
+    .play()
+    .then(() => {
+      playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+    })
+    .catch((e) => {
+      console.log("Click to play (browser policy):", e);
+      // Player visible, user clicks play button
+    });
 }
 
 function formatTime(seconds) {
@@ -326,14 +344,82 @@ function clearPlayer() {
   currentPlayerVideoId = null;
 }
 
-// Global playVideo for onclick handlers
-window.playVideo = function (id, title) {
+let currentInlineAudio = null;
+let currentInlineCard = null;
+
+// Inline card player - no overlay
+window.toggleInlinePlay = function (id) {
   const video = currentResults.find((r) => r.videoId === id || r.id === id);
-  if (!video) {
-    showNotification("Video not found", "error");
+  if (!video) return;
+
+  const card = document.querySelector(`[data-video-id="${id}"]`);
+  const thumbnail = card.querySelector(".card-thumbnail");
+  const miniPlayer = thumbnail.querySelector(".mini-player");
+  const playBtn = miniPlayer.querySelector(".mini-play-btn");
+
+  if (currentInlineCard === card) {
+    // Toggle current playing card
+    if (currentInlineAudio.paused) {
+      currentInlineAudio.play();
+      playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+    } else {
+      currentInlineAudio.pause();
+      playBtn.innerHTML = '<i class="fas fa-play"></i>';
+    }
     return;
   }
-  playTrack(id, title, video.url || "", video.type || "youtube");
+
+  // Stop any playing audio
+  if (currentInlineAudio) {
+    currentInlineAudio.pause();
+  }
+
+  // Setup new mini-player
+  const playUrl =
+    video.type === "freesound" || video.format === "mp3"
+      ? `/api/proxy-audio?url=${encodeURIComponent(video.url)}`
+      : video.url;
+
+  miniPlayer.innerHTML = `
+    <audio src="${playUrl}"></audio>
+    <button class="mini-play-btn"><i class="fas fa-play"></i></button>
+    <div class="mini-progress"><div class="mini-progress-fill"></div></div>
+    <span class="mini-time">0:00</span>
+  `;
+
+  const audio = miniPlayer.querySelector("audio");
+  const playBtnNew = miniPlayer.querySelector(".mini-play-btn");
+  const progress = miniPlayer.querySelector(".mini-progress");
+  const progressFill = miniPlayer.querySelector(".mini-progress-fill");
+  const timeEl = miniPlayer.querySelector(".mini-time");
+
+  currentInlineAudio = audio;
+  currentInlineCard = card;
+  miniPlayer.style.display = "flex";
+
+  // Events
+  playBtnNew.onclick = (e) => {
+    e.stopPropagation();
+    if (audio.paused) {
+      audio.play();
+      playBtnNew.innerHTML = '<i class="fas fa-pause"></i>';
+    } else {
+      audio.pause();
+      playBtnNew.innerHTML = '<i class="fas fa-play"></i>';
+    }
+  };
+
+  audio.ontimeupdate = () => {
+    const percent = (audio.currentTime / audio.duration) * 100;
+    progressFill.style.width = percent + "%";
+    timeEl.textContent = formatTime(audio.currentTime);
+  };
+
+  audio.onloadedmetadata = () => {
+    timeEl.textContent = formatTime(audio.duration);
+  };
+
+  audio.play();
 };
 
 function showLoading(show) {

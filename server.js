@@ -45,9 +45,7 @@ async function initializeDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-    console.log("✅ Users table OK");
 
-    console.log("📊 Creating/verifying face_data table...");
     await pool.query(`
             CREATE TABLE IF NOT EXISTS face_data (
                 id SERIAL PRIMARY KEY,
@@ -56,7 +54,6 @@ async function initializeDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
-    console.log("✅ Face_data table OK");
 
     dbReady = true;
     console.log("🎉 DB ready - full mode");
@@ -342,6 +339,37 @@ app.post("/api/save-face", async (req, res) => {
 // Fallback for 404 images
 app.get(/^\/(placeholder-audio|audio)\.(jpg|svg|png)$/, (req, res) => {
   res.sendFile(path.join(__dirname, "audio.svg"));
+});
+
+// Proxy MP3 endpoint to bypass CORS - fixes audio playback
+app.get("/api/proxy-audio", async (req, res) => {
+  const { url } = req.query;
+  if (!url) {
+    return res.status(400).json({ error: "URL parameter required" });
+  }
+
+  try {
+    console.log("🔊 Proxying MP3:", url);
+    const response = await axios.get(url, {
+      responseType: "stream",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; MusicEra/1.0)",
+      },
+      timeout: 10000,
+    });
+
+    res.set({
+      "Content-Type": response.headers["content-type"] || "audio/mpeg",
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=3600",
+      "Content-Length": response.headers["content-length"],
+    });
+
+    response.data.pipe(res);
+  } catch (error) {
+    console.error("Proxy error:", error.message);
+    res.status(500).json({ error: "Failed to proxy audio" });
+  }
 });
 
 // MP3 search with infinite pagination & working audio URLs
