@@ -54,13 +54,14 @@ function debounce(func, wait) {
   };
 }
 
-let currentFormat = "mp4"; // Default
+let currentFormat = "mp4"; // MP3 DISABLED - locked to MP4
 let currentPage = 1;
 let hasMore = true;
 let loadingMore = false;
 let infiniteObserver = null;
 let currentQuery = "";
 
+/* MP3 FEATURE DISABLED
 // Add format toggle elements
 const formatToggle = document.getElementById("formatToggle");
 const mp4Btn = document.getElementById("mp4Btn");
@@ -75,6 +76,7 @@ function setFormat(format) {
   if (mp3Btn) mp3Btn.classList.toggle("active", format === "mp3");
   resultsCount.textContent = `0 ${format.toUpperCase()} results`;
 }
+*/
 
 async function handleSearch(isLoadMore = false) {
   const query = searchInput.value.trim();
@@ -135,14 +137,13 @@ function renderResults() {
   if (currentResults.length === 0) {
     searchResults.innerHTML = "";
     noResultsMsg.style.display = "block";
-    if (resultsCount)
-      resultsCount.textContent = `0 ${currentFormat.toUpperCase()} results`;
+    if (resultsCount) resultsCount.textContent = `0 MP4 results`; // MP3 DISABLED
     return;
   }
 
   noResultsMsg.style.display = "none";
   if (resultsCount)
-    resultsCount.textContent = `${currentResults.length} ${currentFormat.toUpperCase()} results`;
+    resultsCount.textContent = `${currentResults.length} MP4 results`; // MP3 DISABLED
 
   const html = currentResults
     .map(
@@ -151,7 +152,7 @@ function renderResults() {
             <div class="card-thumbnail">
                 <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
                 <div class="play-overlay">
-                    <i class="fas fa-${currentFormat === "mp4" ? "play" : "music"}"></i>
+                <i class="fas fa-play"></i> <!-- MP3 DISABLED -->
                 </div>
                 <div class="mini-player" style="display: none;">
                     <button class="mini-play-btn"><i class="fas fa-pause"></i></button>
@@ -183,12 +184,9 @@ function renderResults() {
 function playTrack(id, title, url, type) {
   currentPlayerVideoId = id;
 
-  if (type === "youtube" || type === "mp4") {
-    updatePlayerIframe(id, title);
-  } else {
-    // MP3 - native audio player with overlay
-    updateAudioPlayer(url, title);
-  }
+  /* MP3 DISABLED */
+  updatePlayerIframe(id, title);
+  /* end MP3 DISABLED */
 
   // Always show overlay for all media types
   showOverlay();
@@ -328,8 +326,7 @@ function clearSearch() {
   searchResults.innerHTML = "";
   playerContainer.innerHTML = "";
   noResultsMsg.style.display = "none";
-  if (resultsCount)
-    resultsCount.textContent = `0 ${currentFormat.toUpperCase()} results`;
+  if (resultsCount) resultsCount.textContent = `0 MP4 results`; // MP3 DISABLED
   currentPlayerVideoId = null;
 }
 
@@ -344,68 +341,19 @@ function clearPlayer() {
   currentPlayerVideoId = null;
 }
 
+/* MP3 DISABLED
 let currentInlineAudio = null;
-let currentInlineCard = null;
+let currentInlineCard = null; */
 
 // Inline MP3 player only - video uses full overlay
 window.toggleInlinePlay = function (id) {
   const video = currentResults.find((r) => r.videoId === id || r.id === id);
   if (!video) return;
 
-  // MP4/Video → full overlay, MP3 → inline
-  if (video.type === "youtube" || currentFormat === "mp4") {
-    const playUrl = video.url;
-    playTrack(id, video.title, playUrl, video.type);
-    return;
-  }
-
-  const card = document.querySelector(`[data-video-id="${id}"]`);
-  const thumbnail = card.querySelector(".card-thumbnail");
-  const miniPlayer = thumbnail.querySelector(".mini-player");
-
-  if (currentInlineCard === card) {
-    currentInlineAudio.paused
-      ? currentInlineAudio.play()
-      : currentInlineAudio.pause();
-    return;
-  }
-
-  if (currentInlineAudio) currentInlineAudio.pause();
-
-  const playUrl = `/api/proxy-audio?url=${encodeURIComponent(video.url)}`;
-
-  miniPlayer.innerHTML = `
-    <audio src="${playUrl}"></audio>
-    <button class="mini-play-btn"><i class="fas fa-play"></i></button>
-    <div class="mini-progress"><div class="mini-progress-fill"></div></div>
-    <span class="mini-time">0:00</span>
-  `;
-
-  const audio = miniPlayer.querySelector("audio");
-  const playBtn = miniPlayer.querySelector(".mini-play-btn");
-  const progressFill = miniPlayer.querySelector(".mini-progress-fill");
-  const timeEl = miniPlayer.querySelector(".mini-time");
-
-  currentInlineAudio = audio;
-  currentInlineCard = card;
-  miniPlayer.style.display = "flex";
-
-  playBtn.onclick = (e) => {
-    e.stopPropagation();
-    audio.paused
-      ? (audio.play(), (playBtn.innerHTML = '<i class="fas fa-pause"></i>'))
-      : (audio.pause(), (playBtn.innerHTML = '<i class="fas fa-play"></i>'));
-  };
-
-  audio.ontimeupdate = () => {
-    progressFill.style.width = (audio.currentTime / audio.duration) * 100 + "%";
-    timeEl.textContent = formatTime(audio.currentTime);
-  };
-
-  audio.onloadedmetadata = () =>
-    (timeEl.textContent = formatTime(audio.duration));
-
-  audio.play();
+  /* MP3 DISABLED - force video overlay */
+  const playUrl = video.url;
+  playTrack(id, video.title, playUrl, video.type);
+  /* end MP3 DISABLED */
 };
 
 function showLoading(show) {

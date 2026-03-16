@@ -341,6 +341,7 @@ app.get(/^\/(placeholder-audio|audio)\.(jpg|svg|png)$/, (req, res) => {
   res.sendFile(path.join(__dirname, "audio.svg"));
 });
 
+/* MP3 FEATURE DISABLED
 // Proxy MP3 endpoint to bypass CORS - fixes audio playback
 app.get("/api/proxy-audio", async (req, res) => {
   const { url } = req.query;
@@ -371,6 +372,7 @@ app.get("/api/proxy-audio", async (req, res) => {
     res.status(500).json({ error: "Failed to proxy audio" });
   }
 });
+MP3 FEATURE DISABLED */
 
 // MP3 search with infinite pagination & working audio URLs
 app.post("/api/search", async (req, res) => {
@@ -405,8 +407,8 @@ app.post("/api/search", async (req, res) => {
         type: "youtube",
         format,
       }));
-    } else {
-      // Reliable free MP3 URLs + infinite
+    } /* else {
+      // Reliable free MP3 URLs + infinite - MP3 DISABLED
       for (let i = 1; i <= perPage * 2; i++) {
         allResults.push({
           id: `demo${(page - 1) * perPage + i}`,
@@ -418,7 +420,7 @@ app.post("/api/search", async (req, res) => {
           format: "mp3",
         });
       }
-    }
+    } */
     const startIdx = (page - 1) * perPage;
     const results = allResults.slice(startIdx, startIdx + perPage);
     res.json({
