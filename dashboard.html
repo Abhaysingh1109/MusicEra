@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MusicEra - Dashboard</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="navbar-styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,8 +18,12 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 40px;
+            padding: 40px 20px 40px 20px;
             text-align: center;
+        }
+
+        body.has-navbar .dashboard-container {
+            padding-top: 100px;
         }
 
         .welcome-card {
@@ -156,11 +161,48 @@
         }
     </style>
 </head>
-<body>
-<div class="dashboard-container">
+<body class="has-navbar">
+    <!-- Navbar - Embedded for static compatibility -->
+    <nav id="musicera-navbar" class="navbar">
+      <div class="navbar-container">
+        <!-- Logo / Brand -->
+        <div class="navbar-brand" onclick="window.location.reload()">
+          <i class="fas fa-record-vinyl"></i>
+          <span>MusicEra</span>
+        </div>
+        
+        <!-- Hamburger Button -->
+        <button class="navbar-hamburger" id="navbarToggle">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+      
+      <!-- User Dropdown Menu -->
+      <div class="navbar-dropdown" id="navbarDropdown">
+        <div class="user-profile">
+          <div class="user-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="user-details">
+            <div class="user-name" id="navbarUserName">User</div>
+            <div class="user-email" id="navbarUserEmail">user@example.com</div>
+            <div class="face-badge" id="navbarFaceBadge" style="display: none;">
+              <i class="fas fa-face-smile"></i> Face ID Enabled
+            </div>
+          </div>
+        </div>
+        <button class="navbar-logout" onclick="logout()">
+          <i class="fas fa-sign-out-alt"></i>
+          Logout
+        </button>
+      </div>
+    </nav>
 
-        <!-- Welcome Header
-        <header class="dashboard-header">
+    <div class="dashboard-container">
+        <!-- Welcome Header -->
+        <!-- <header class="dashboard-header">
             <div class="welcome-card">
                 <div class="welcome-icon">
                     <i class="fas fa-music"></i>
@@ -181,23 +223,13 @@
                     </div>
                 </div>
             </div>
-        </header>
+        </header> -->
 
         <!-- Music Search Section -->
         <main class="music-search-section">
             <div class="search-hero">
                 <h2 class="search-title">Search Any Song</h2>
-                    <!-- MP3 FEATURE DISABLED -->
-                    <!--
-                    <div class="format-toggle">
-                        <button id="mp4Btn" class="format-btn active">
-                            <i class="fas fa-video"></i> MP4 Video
-                        </button>
-                        <button id="mp3Btn" class="format-btn">
-                            <i class="fas fa-music"></i> MP3 Audio
-                        </button>
-                    </div>
-                    -->
+                    <!-- Search Container -->
                     <div class="search-container">
                         <div class="search-box">
                             <i class="fas fa-search search-icon"></i>
@@ -229,30 +261,50 @@
             </div>
 
             <!-- YouTube Player -->
-<div id="youtubePlayer" class="player-container">
-    <button class="player-overlay-close" onclick="closeOverlay()">
-        <i class="fas fa-times"></i>
-    </button>
-    <link rel="stylesheet" href="spotify-player.css">
-</div>
+            <div id="youtubePlayer" class="player-container">
+                <button class="player-overlay-close" onclick="closeOverlay()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         </main>
-
-        <!-- Logout Button Fixed -->
-        <button class="logout-btn" onclick="logout()">
-            <i class="fas fa-sign-out-alt"></i>
-        </button>
     </div>
 
     <script>
+        // Navbar functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const hamburger = document.getElementById('navbarToggle');
+            const dropdown = document.getElementById('navbarDropdown');
+            const navbar = document.getElementById('musicera-navbar');
+            
+            hamburger.addEventListener('click', () => {
+                hamburger.classList.toggle('active');
+                dropdown.classList.toggle('active');
+            });
+            
+            // Close dropdown on outside click
+            document.addEventListener('click', (e) => {
+                if (!navbar.contains(e.target)) {
+                    hamburger.classList.remove('active');
+                    dropdown.classList.remove('active');
+                }
+            });
+        });
+
         // Get user data from sessionStorage
         const userData = JSON.parse(sessionStorage.getItem('userData') || '{}');
         
         if (!userData.name) {
-            // No user data, redirect to login
             window.location.href = 'index.html';
         }
         
-        // Display user info (defensive - elements may be commented out)
+        // Populate navbar user info
+        document.getElementById('navbarUserName').textContent = userData.name || 'User';
+        document.getElementById('navbarUserEmail').textContent = userData.email || '';
+        if (userData.hasFace) {
+            document.getElementById('navbarFaceBadge').style.display = 'inline-flex';
+        }
+        
+        // Display user info (existing elements)
         const userNameEl = document.getElementById('userName');
         if (userNameEl) userNameEl.textContent = userData.name.split(' ')[0];
         
@@ -262,24 +314,21 @@
         const userEmailEl = document.getElementById('userEmail');
         if (userEmailEl) userEmailEl.textContent = userData.email;
         
-        // Show face badge if enabled
         const faceBadgeEl = document.getElementById('faceBadge');
         if (userData.hasFace && faceBadgeEl) {
             faceBadgeEl.style.display = 'inline-flex';
         }
         
-        function logout() {
+        window.logout = function() {
             sessionStorage.removeItem('userData');
             window.location.href = 'index.html';
-        }
+        };
+        
+        window.goToEmotions = function() {
+          window.location.href = 'emotion.html';
+        };
     </script>
-    
-    <!-- Dashboard JS -->
-window.goToEmotions = function() {
-  window.location.href = 'emotion.html';
-};
-
     <script src="dashboard.js" defer></script>
 </body>
 </html>
- -->
+

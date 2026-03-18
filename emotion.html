@@ -1,16 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MusicEra - Emotion Center</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="navbar-styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        body.has-navbar .emotion-page {
+            padding-top: 100px;
+        }
+
         .emotion-page {
             min-height: 100vh;
             padding: 40px 20px;
@@ -58,45 +63,6 @@
             font-size: 1.2rem;
             color: rgba(255,255,255,0.8);
             font-weight: 300;
-        }
-
-        .user-welcome {
-            background: rgba(255,255,255,0.05);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px;
-            padding: 25px 40px;
-            margin-bottom: 50px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            max-width: 500px;
-            animation: slideInUp 0.6s ease;
-        }
-
-        .user-avatar {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #6366f1, #ec4899);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            color: white;
-            flex-shrink: 0;
-        }
-
-        .user-info h3 {
-            margin: 0 0 5px 0;
-            color: white;
-            font-size: 1.3rem;
-        }
-
-        .user-info p {
-            margin: 0;
-            color: rgba(255,255,255,0.7);
-            font-size: 0.95rem;
         }
 
         .emotion-grid {
@@ -188,35 +154,6 @@
             box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
         }
 
-        .logout-section {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 20px 40px;
-            background: rgba(239,68,68,0.15);
-            border: 1px solid rgba(239,68,68,0.3);
-            border-radius: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            max-width: 300px;
-            margin: 0 auto;
-        }
-
-        .logout-section:hover {
-            background: rgba(239,68,68,0.25);
-        }
-
-        .logout-btn {
-            background: none;
-            border: none;
-            color: #f87171;
-            font-size: 1.1rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
         @keyframes slideInUp {
             to {
                 opacity: 1;
@@ -238,19 +175,49 @@
             .emotion-title {
                 font-size: 2.2rem;
             }
-            
-            .user-welcome {
-                flex-direction: column;
-                text-align: center;
-                padding: 20px;
-            }
         }
     </style>
 </head>
-<body>
-    <div class="emotion-page">
-        <!-- Auth Guard will handle redirect if no user -->
+<body class="has-navbar">
+    <!-- Navbar - Embedded for static compatibility -->
+    <nav id="musicera-navbar" class="navbar">
+      <div class="navbar-container">
+        <!-- Logo / Brand -->
+        <div class="navbar-brand" onclick="window.location.reload()">
+          <i class="fas fa-record-vinyl"></i>
+          <span>MusicEra</span>
+        </div>
         
+        <!-- Hamburger Button -->
+        <button class="navbar-hamburger" id="navbarToggle">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+      
+      <!-- User Dropdown Menu -->
+      <div class="navbar-dropdown" id="navbarDropdown">
+        <div class="user-profile">
+          <div class="user-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="user-details">
+            <div class="user-name" id="navbarUserName">User</div>
+            <div class="user-email" id="navbarUserEmail">user@example.com</div>
+            <div class="face-badge" id="navbarFaceBadge" style="display: none;">
+              <i class="fas fa-face-smile"></i> Face ID Enabled
+            </div>
+          </div>
+        </div>
+        <button class="navbar-logout" onclick="logout()">
+          <i class="fas fa-sign-out-alt"></i>
+          Logout
+        </button>
+      </div>
+    </nav>
+
+    <div class="emotion-page">
         <header class="emotion-header">
             <div class="emotion-logo">
                 <i class="fas fa-face-smile-beam"></i>
@@ -259,18 +226,6 @@
             <p class="emotion-subtitle">Understand your emotions, discover your music</p>
         </header>
 
-        <!-- User Welcome -->
-        <div class="user-welcome" id="userWelcome">
-            <div class="user-avatar">
-                <i class="fas fa-user"></i>
-            </div>
-            <div class="user-info">
-                <h3 id="displayName">Loading...</h3>
-                <p id="userEmail">Welcome back!</p>
-            </div>
-        </div>
-
-        <!-- Emotion Cards Grid -->
         <main class="emotion-grid">
             <!-- Card 1: Emotion Detection -->
             <div class="emotion-card" onclick="goToEmotionDetection()">
@@ -302,49 +257,59 @@
                 </button>
             </div>
         </main>
-
-        <!-- Logout -->
-        <div class="logout-section" onclick="logout()">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Logout</span>
-        </div>
     </div>
 
     <script>
-        // Auth Guard - redirect if not logged in
+        // Navbar functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const hamburger = document.getElementById('navbarToggle');
+            const dropdown = document.getElementById('navbarDropdown');
+            const navbar = document.getElementById('musicera-navbar');
+            
+            hamburger.addEventListener('click', () => {
+                hamburger.classList.toggle('active');
+                dropdown.classList.toggle('active');
+            });
+            
+            // Close dropdown on outside click
+            document.addEventListener('click', (e) => {
+                if (!navbar.contains(e.target)) {
+                    hamburger.classList.remove('active');
+                    dropdown.classList.remove('active');
+                }
+            });
+        });
+
+        // Auth Guard & user data
         const userData = JSON.parse(sessionStorage.getItem('userData') || '{}');
         if (!userData.name) {
             window.location.href = 'index.html';
         }
 
-        // Display user info
-        document.addEventListener('DOMContentLoaded', () => {
-            const displayNameEl = document.getElementById('displayName');
-            const userEmailEl = document.getElementById('userEmail');
-            
-            if (displayNameEl) displayNameEl.textContent = userData.name || 'User';
-            if (userEmailEl) userEmailEl.textContent = userData.email || '';
-        });
+        // Populate navbar user info
+        document.getElementById('navbarUserName').textContent = userData.name || 'User';
+        document.getElementById('navbarUserEmail').textContent = userData.email || '';
+        if (userData.hasFace) {
+            document.getElementById('navbarFaceBadge').style.display = 'inline-flex';
+        }
 
         // Navigation functions
         function goToEmotionDetection() {
             alert('Emotion Detection feature coming soon!');
-            // Future: window.location.href = 'emotion-detection.html';
         }
 
         function goToEmotionHistory() {
             alert('Emotion History feature coming soon!');
-            // Future: window.location.href = 'emotion-history.html';
         }
 
         function goToDashboard() {
             window.location.href = 'dashboard.html';
         }
 
-        function logout() {
+        window.logout = function() {
             sessionStorage.removeItem('userData');
             window.location.href = 'index.html';
-        }
+        };
     </script>
 </body>
 </html>

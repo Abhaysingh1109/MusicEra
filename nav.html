@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+<!-- Reusable MusicEra Navbar -->
+<nav id="musicera-navbar" class="navbar">
+  <div class="navbar-container">
+    <!-- Logo / Brand -->
+    <div class="navbar-brand">
+      <i class="fas fa-record-vinyl"></i>
+      <span>MusicEra</span>
+    </div>
+    
+    <!-- Hamburger Button -->
+    <button class="navbar-hamburger" id="navbarToggle">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+  </div>
+  
+  <!-- User Dropdown Menu (hidden by default) -->
+  <div class="navbar-dropdown" id="navbarDropdown">
+    <div class="user-profile">
+      <div class="user-avatar">
+        <i class="fas fa-user"></i>
+      </div>
+      <div class="user-details">
+        <div class="user-name" id="navbarUserName">User</div>
+        <div class="user-email" id="navbarUserEmail">user@example.com</div>
+        <div class="face-badge" id="navbarFaceBadge" style="display: none;">
+          <i class="fas fa-face-smile"></i> Face ID Enabled
+        </div>
+      </div>
+    </div>
+    <button class="navbar-logout" onclick="logout()">
+      <i class="fas fa-sign-out-alt"></i>
+      Logout
+    </button>
+  </div>
+</nav>
+
+<script>
+// Shared navbar functionality (will be loaded per page)
+// Note: logout() function must exist in parent page or be defined here
+if (typeof logout === 'undefined') {
+  window.logout = function() {
+    sessionStorage.removeItem('userData');
+    window.location.href = 'index.html';
+  };
+}
+
+// Populate user data when loaded
+function initNavbar() {
+  const userData = JSON.parse(sessionStorage.getItem('userData') || '{}');
+  if (userData.name) {
+    document.getElementById('navbarUserName').textContent = userData.name;
+    document.getElementById('navbarUserEmail').textContent = userData.email || '';
+    if (userData.hasFace) {
+      document.getElementById('navbarFaceBadge').style.display = 'inline-flex';
+    }
+  }
+}
+
+// Auto-init when DOM loaded
+document.addEventListener('DOMContentLoaded', initNavbar);
+</script>
+</body>
+</html>
+
