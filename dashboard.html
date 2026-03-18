@@ -166,9 +166,9 @@
     <nav id="musicera-navbar" class="navbar">
       <div class="navbar-container">
         <!-- Logo / Brand -->
-        <div class="navbar-brand" onclick="window.location.reload()">
-          <i class="fas fa-record-vinyl"></i>
-          <span>MusicEra</span>
+        <div class="navbar-brand" id="navbarLogo" onclick="handleLogoClick()">
+          <i class="fas fa-record-vinyl" id="logoIcon"></i>
+          <span id="logoText">MusicEra</span>
         </div>
         
         <!-- Hamburger Button -->
@@ -321,12 +321,36 @@
         
         window.logout = function() {
             sessionStorage.removeItem('userData');
+            sessionStorage.removeItem('fromPage');
             window.location.href = 'index.html';
         };
         
         window.goToEmotions = function() {
+          sessionStorage.removeItem('fromPage');
           window.location.href = 'emotion.html';
         };
+
+        function handleLogoClick() {
+          const fromPage = sessionStorage.getItem('fromPage');
+          if (fromPage === 'emotion.html') {
+            goToEmotions();
+          } else {
+            window.location.reload();
+          }
+        }
+
+        // Dynamic logo setup
+        document.addEventListener('DOMContentLoaded', function() {
+          const logoIcon = document.getElementById('logoIcon');
+          const logoText = document.getElementById('logoText');
+          const fromPage = sessionStorage.getItem('fromPage');
+          
+          if (fromPage === 'emotion.html') {
+            logoIcon.className = 'fas fa-arrow-left';
+            logoText.textContent = 'Back';
+            document.title = 'MusicEra - Back to Emotions';
+          }
+        });
     </script>
     <script src="dashboard.js" defer></script>
 </body>
