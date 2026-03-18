@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusicEra - Emotion Center</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .emotion-page {
+            min-height: 100vh;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .emotion-header {
+            text-align: center;
+            margin-bottom: 60px;
+            max-width: 600px;
+        }
+
+        .emotion-logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .emotion-logo i {
+            font-size: 3rem;
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .emotion-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 3rem;
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .emotion-subtitle {
+            font-size: 1.2rem;
+            color: rgba(255,255,255,0.8);
+            font-weight: 300;
+        }
+
+        .user-welcome {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 25px 40px;
+            margin-bottom: 50px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            max-width: 500px;
+            animation: slideInUp 0.6s ease;
+        }
+
+        .user-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .user-info h3 {
+            margin: 0 0 5px 0;
+            color: white;
+            font-size: 1.3rem;
+        }
+
+        .user-info p {
+            margin: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.95rem;
+        }
+
+        .emotion-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            max-width: 1200px;
+            width: 100%;
+            margin-bottom: 60px;
+        }
+
+        .emotion-card {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 24px;
+            padding: 40px 30px;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            animation: slideInUp 0.6s ease forwards;
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        .emotion-card:nth-child(1) { animation-delay: 0.1s; }
+        .emotion-card:nth-child(2) { animation-delay: 0.2s; }
+        .emotion-card:nth-child(3) { animation-delay: 0.3s; }
+
+        .emotion-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #6366f1, #ec4899, #6366f1);
+            background-size: 200% 100%;
+            animation: shimmer 3s infinite;
+        }
+
+        .emotion-card:hover {
+            transform: translateY(-12px);
+            box-shadow: 0 30px 60px rgba(99, 102, 241, 0.25);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        .emotion-card i {
+            font-size: 4rem;
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 25px;
+            display: block;
+        }
+
+        .emotion-card h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: white;
+        }
+
+        .emotion-card p {
+            color: rgba(255,255,255,0.8);
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .emotion-card .btn-explore {
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        }
+
+        .emotion-card .btn-explore:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
+        }
+
+        .logout-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 20px 40px;
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .logout-section:hover {
+            background: rgba(239,68,68,0.25);
+        }
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #f87171;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        @keyframes slideInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes shimmer {
+            0%, 100% { background-position: 200% 0; }
+            50% { background-position: 0 0; }
+        }
+
+        @media (max-width: 768px) {
+            .emotion-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .emotion-title {
+                font-size: 2.2rem;
+            }
+            
+            .user-welcome {
+                flex-direction: column;
+                text-align: center;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="emotion-page">
+        <!-- Auth Guard will handle redirect if no user -->
+        
+        <header class="emotion-header">
+            <div class="emotion-logo">
+                <i class="fas fa-face-smile-beam"></i>
+                <h1 class="emotion-title">Emotion Center</h1>
+            </div>
+            <p class="emotion-subtitle">Understand your emotions, discover your music</p>
+        </header>
+
+        <!-- User Welcome -->
+        <div class="user-welcome" id="userWelcome">
+            <div class="user-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+            <div class="user-info">
+                <h3 id="displayName">Loading...</h3>
+                <p id="userEmail">Welcome back!</p>
+            </div>
+        </div>
+
+        <!-- Emotion Cards Grid -->
+        <main class="emotion-grid">
+            <!-- Card 1: Emotion Detection -->
+            <div class="emotion-card" onclick="goToEmotionDetection()">
+                <i class="fas fa-camera"></i>
+                <h3>Emotion Detection</h3>
+                <p>Analyze your current facial expression in real-time to understand your mood right now</p>
+                <button class="btn-explore">
+                    <i class="fas fa-play"></i> Detect Emotion
+                </button>
+            </div>
+
+            <!-- Card 2: Emotion History -->
+            <div class="emotion-card" onclick="goToEmotionHistory()">
+                <i class="fas fa-chart-line"></i>
+                <h3>Emotion History</h3>
+                <p>Review your emotion patterns over time and see how your mood evolves with your music journey</p>
+                <button class="btn-explore">
+                    <i class="fas fa-history"></i> View History
+                </button>
+            </div>
+
+            <!-- Card 3: Go to Dashboard -->
+            <div class="emotion-card" onclick="goToDashboard()">
+                <i class="fas fa-music"></i>
+                <h3>Music Dashboard</h3>
+                <p>Discover personalized music recommendations based on your emotional state</p>
+                <button class="btn-explore">
+                    <i class="fas fa-arrow-right"></i> Go to Dashboard
+                </button>
+            </div>
+        </main>
+
+        <!-- Logout -->
+        <div class="logout-section" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+        </div>
+    </div>
+
+    <script>
+        // Auth Guard - redirect if not logged in
+        const userData = JSON.parse(sessionStorage.getItem('userData') || '{}');
+        if (!userData.name) {
+            window.location.href = 'index.html';
+        }
+
+        // Display user info
+        document.addEventListener('DOMContentLoaded', () => {
+            const displayNameEl = document.getElementById('displayName');
+            const userEmailEl = document.getElementById('userEmail');
+            
+            if (displayNameEl) displayNameEl.textContent = userData.name || 'User';
+            if (userEmailEl) userEmailEl.textContent = userData.email || '';
+        });
+
+        // Navigation functions
+        function goToEmotionDetection() {
+            alert('Emotion Detection feature coming soon!');
+            // Future: window.location.href = 'emotion-detection.html';
+        }
+
+        function goToEmotionHistory() {
+            alert('Emotion History feature coming soon!');
+            // Future: window.location.href = 'emotion-history.html';
+        }
+
+        function goToDashboard() {
+            window.location.href = 'dashboard.html';
+        }
+
+        function logout() {
+            sessionStorage.removeItem('userData');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
+
