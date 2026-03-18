@@ -473,6 +473,9 @@ function showUserBar(user) {
             <span class="user-name">Hi, ${user.name || user.email.split("@")[0]}</span>
             <span class="user-email">${user.email}</span>
         </div>
+        <button class="back-btn" onclick="goToEmotions()">
+            <i class="fas fa-arrow-left"></i> Back to Emotions
+        </button>
         <button class="logout-btn" onclick="logout()">
             <i class="fas fa-sign-out-alt"></i> Logout
         </button>
@@ -484,18 +487,21 @@ function showUserBar(user) {
     const style = document.createElement("style");
     style.id = "userBarStyles";
     style.textContent = `
-            #userBar {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                padding: 12px 24px;
-                background: rgba(255,255,255,0.1);
-                backdrop-filter: blur(20px);
-                border-radius: 16px;
-                margin: 0 24px 24px;
-                border: 1px solid rgba(255,255,255,0.2);
-                box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+#userBar {
+                display: flex !important;
+                align-items: center !important;
+                gap: 20px !important;
+                padding: 16px 32px !important;
+                background: rgba(255,255,255,0.15) !important;
+                backdrop-filter: blur(25px) !important;
+                border-radius: 20px !important;
+                margin: 20px auto !important;
+                max-width: 800px !important;
+                border: 1px solid rgba(255,255,255,0.25) !important;
+                box-shadow: 0 12px 40px rgba(0,0,0,0.15) !important;
+                flex-wrap: wrap !important;
             }
+
             .user-avatar i { font-size: 32px; color: #3b82f6; }
             .user-info { flex: 1; }
             .user-name { display: block; font-weight: 600; color: white; }
@@ -511,10 +517,28 @@ function showUserBar(user) {
                 transition: all 0.2s;
             }
             .logout-btn:hover { background: rgba(239,68,68,0.3); }
+            .back-btn {
+                background: rgba(99,102,241,0.2);
+                border: 1px solid rgba(99,102,241,0.4);
+                color: #6366f1;
+                padding: 8px 16px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 0.9em;
+                transition: all 0.2s;
+            }
+            .back-btn:hover { 
+                background: rgba(99,102,241,0.3); 
+                transform: translateX(-2px);
+            }
         `;
     document.head.appendChild(style);
   }
 }
+
+window.goToEmotions = function () {
+  window.location.href = "emotion.html";
+};
 
 window.logout = function () {
   sessionStorage.removeItem("userData");
