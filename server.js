@@ -11,6 +11,7 @@ const crypto = require("crypto");
 const { spawn } = require("child_process");
 const dotenv = require("dotenv");
 const axios = require("axios");
+const nodemailer = require("nodemailer");
 
 dotenv.config();
 
@@ -23,6 +24,25 @@ const EMOTION_REQUEST_TIMEOUT_MS = parseInt(
   process.env.EMOTION_REQUEST_TIMEOUT_MS || "6000",
   10,
 );
+const OTP_EXPIRY_MINUTES = Math.max(
+  1,
+  parseInt(process.env.OTP_EXPIRY_MINUTES || "10", 10),
+);
+const OTP_MAX_ATTEMPTS = Math.max(
+  1,
+  parseInt(process.env.OTP_MAX_ATTEMPTS || "5", 10),
+);
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587", 10);
+const SMTP_SECURE =
+  String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
+const MAIL_FROM =
+  process.env.MAIL_FROM ||
+  process.env.SMTP_FROM ||
+  process.env.SMTP_USER ||
+  "no-reply@musicera.local";
+const OTP_DEV_FALLBACK_ENABLED =
+  String(process.env.OTP_DEV_FALLBACK_ENABLED || "true").toLowerCase() ===
+  "true";
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
@@ -62,6 +82,7 @@ let emotionWorkerProcess = null;
 let emotionWorkerReady = null;
 let emotionWorkerRequestId = 0;
 const pendingEmotionRequests = new Map();
+let mailTransporterPromise = null;
 
 const EMOTION_LOOKBACK_DAYS = Math.max(
   1,
@@ -121,6 +142,123 @@ function normalizeMoodLabel(value) {
     .toLowerCase();
 
   return normalized || "neutral";
+}
+
+function normalizeEmail(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function generateOtpCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function hashOtpCode(otp) {
+  return crypto.createHash("sha256").update(String(otp)).digest("hex");
+}
+
+function maskEmailAddress(email) {
+  const normalizedEmail = normalizeEmail(email);
+  const [localPart, domain] = normalizedEmail.split("@");
+
+  if (!localPart || !domain) {
+    return normalizedEmail;
+  }
+
+  if (localPart.length <= 2) {
+    return `${localPart[0] || "*"}*@${domain}`;
+  }
+
+  return `${localPart[0]}${"*".repeat(localPart.length - 2)}${localPart[localPart.length - 1]}@${domain}`;
+}
+
+async function getMailTransporter() {
+  if (mailTransporterPromise) {
+    return mailTransporterPromise;
+  }
+
+  mailTransporterPromise = (async () => {
+    const hasService = Boolean(process.env.SMTP_SERVICE);
+    const hasHost = Boolean(process.env.SMTP_HOST);
+    const hasAuth =
+      Boolean(process.env.SMTP_USER) && Boolean(process.env.SMTP_PASS);
+
+    if ((!hasService && !hasHost) || !hasAuth) {
+      throw new Error(
+        "Email delivery is not configured. Set SMTP_HOST or SMTP_SERVICE, plus SMTP_USER, SMTP_PASS, and MAIL_FROM.",
+      );
+    }
+
+    const transporter = nodemailer.createTransport(
+      hasService
+        ? {
+            service: process.env.SMTP_SERVICE,
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS,
+            },
+          }
+        : {
+            host: process.env.SMTP_HOST,
+            port: SMTP_PORT,
+            secure: SMTP_SECURE,
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS,
+            },
+          },
+    );
+
+    await transporter.verify();
+    return transporter;
+  })().catch((error) => {
+    mailTransporterPromise = null;
+    throw error;
+  });
+
+  return mailTransporterPromise;
+}
+
+function isMailConfigured() {
+  const hasService = Boolean(process.env.SMTP_SERVICE);
+  const hasHost = Boolean(process.env.SMTP_HOST);
+  const hasAuth =
+    Boolean(process.env.SMTP_USER) && Boolean(process.env.SMTP_PASS);
+
+  return (hasService || hasHost) && hasAuth;
+}
+
+async function sendSignupOtpEmail({ email, otp, name }) {
+  const transporter = await getMailTransporter();
+  const displayName = String(name || "").trim() || "there";
+
+  await transporter.sendMail({
+    from: MAIL_FROM,
+    to: email,
+    subject: "MusicEra email verification code",
+    text: [
+      `Hi ${displayName},`,
+      "",
+      `Your MusicEra verification code is ${otp}.`,
+      `It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
+      "",
+      "If you did not request this code, you can ignore this email.",
+    ].join("\n"),
+    html: `
+      <div style="font-family: Arial, sans-serif; background: #0a0a1a; color: #f8fafc; padding: 32px;">
+        <div style="max-width: 520px; margin: 0 auto; background: #13132a; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 28px;">
+          <p style="margin: 0 0 12px;">Hi ${displayName},</p>
+          <p style="margin: 0 0 18px;">Use this code to verify your MusicEra account email address.</p>
+          <div style="font-size: 32px; letter-spacing: 8px; font-weight: 700; text-align: center; padding: 18px 20px; border-radius: 14px; background: linear-gradient(135deg, #6366f1, #ec4899); color: white; margin-bottom: 18px;">
+            ${otp}
+          </div>
+          <p style="margin: 0 0 10px;">This code expires in ${OTP_EXPIRY_MINUTES} minutes.</p>
+          <p style="margin: 0; color: #94a3b8;">If you did not request this code, you can ignore this email.</p>
+        </div>
+      </div>
+    `,
+  });
 }
 
 function getDayWeight(targetDate) {
@@ -310,6 +448,80 @@ async function initializeDatabase() {
       `);
 
     await pool.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_name = 'email_verification_otps'
+              AND table_schema = 'public'
+          ) AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_name = 'email_verification_otps'
+              AND table_schema = 'public'
+              AND column_name = 'consumed_at'
+          ) AND NOT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_name = 'email_verification_otps'
+              AND table_schema = 'public'
+              AND column_name = 'id'
+          ) THEN
+            DROP TABLE public.email_verification_otps;
+          END IF;
+        END $$;
+      `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS email_verification_otps (
+          id SERIAL PRIMARY KEY,
+          email VARCHAR(255) NOT NULL,
+          otp_hash VARCHAR(255) NOT NULL,
+          payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+          attempt_count INTEGER NOT NULL DEFAULT 0,
+          expires_at TIMESTAMP NOT NULL,
+          consumed_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+    await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_email_verification_otps_email_created_at
+        ON email_verification_otps (email, created_at DESC)
+      `);
+
+    await pool.query(`
+        ALTER TABLE email_verification_otps
+        ADD COLUMN IF NOT EXISTS otp_hash VARCHAR(255)
+      `);
+
+    await pool.query(`
+        ALTER TABLE email_verification_otps
+        ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb
+      `);
+
+    await pool.query(`
+        ALTER TABLE email_verification_otps
+        ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0
+      `);
+
+    await pool.query(`
+        ALTER TABLE email_verification_otps
+        ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP
+      `);
+
+    await pool.query(`
+        ALTER TABLE email_verification_otps
+        ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP
+      `);
+
+    await pool.query(`
+        ALTER TABLE email_verification_otps
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      `);
+
+    await pool.query(`
             ALTER TABLE emotion_history
             ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
         `);
@@ -391,10 +603,26 @@ async function initializeDatabase() {
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 app.post("/api/register", async (req, res) => {
-  try {
-    const { name, email, password, faceDescriptor } = req.body;
+  res.status(400).json({
+    success: false,
+    message:
+      "Direct registration is disabled. Request an OTP with /api/register/request-otp and complete verification with /api/register/verify-otp.",
+  });
+});
 
-    // Validate input
+app.post("/api/register/request-otp", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const name = String(req.body?.name || "").trim();
+    const email = normalizeEmail(req.body?.email);
+    const password = String(req.body?.password || "");
+
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -402,9 +630,8 @@ app.post("/api/register", async (req, res) => {
       });
     }
 
-    // Check if user already exists
     const existingUser = await pool.query(
-      "SELECT id FROM users WHERE email = $1",
+      "SELECT id FROM users WHERE email = $1 LIMIT 1",
       [email],
     );
 
@@ -415,42 +642,247 @@ app.post("/api/register", async (req, res) => {
       });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const otp = generateOtpCode();
+    const passwordHash = await bcrypt.hash(password, 10);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    // Insert user into database
-    const result = await pool.query(
-      `INSERT INTO users (name, email, password, face_descriptor) 
-             VALUES ($1, $2, $3, $4) 
-             RETURNING id, name, email, created_at`,
+    await pool.query(
+      `UPDATE email_verification_otps
+       SET consumed_at = CURRENT_TIMESTAMP
+       WHERE email = $1
+         AND consumed_at IS NULL`,
+      [email],
+    );
+
+    const insertResult = await pool.query(
+      `INSERT INTO email_verification_otps (
+         email,
+         otp_hash,
+         payload,
+         expires_at
+       ) VALUES ($1, $2, $3::jsonb, $4)
+       RETURNING id`,
       [
-        name,
         email,
-        hashedPassword,
-        faceDescriptor ? JSON.stringify(faceDescriptor) : null,
+        hashOtpCode(otp),
+        JSON.stringify({
+          name,
+          email,
+          passwordHash,
+          faceDescriptor: null,
+        }),
+        expiresAt,
       ],
     );
 
-    const user = result.rows[0];
+    let deliveryMode = "email";
+    let deliveryMessage = `Verification code sent to ${maskEmailAddress(email)}`;
+    const isProduction = process.env.NODE_ENV === "production";
 
-    console.log(`New user registered: ${email}`);
+    try {
+      if (isMailConfigured()) {
+        await sendSignupOtpEmail({ email, otp, name });
+      } else if (OTP_DEV_FALLBACK_ENABLED && !isProduction) {
+        deliveryMode = "console";
+        deliveryMessage =
+          "SMTP is not configured. OTP generated in development mode.";
+        console.log(`DEV OTP for ${email}: ${otp}`);
+      } else {
+        throw new Error(
+          "Email delivery is not configured. Set SMTP_HOST or SMTP_SERVICE, plus SMTP_USER, SMTP_PASS, and MAIL_FROM.",
+        );
+      }
+    } catch (mailError) {
+      await pool.query("DELETE FROM email_verification_otps WHERE id = $1", [
+        insertResult.rows[0].id,
+      ]);
+      throw mailError;
+    }
+
+    console.log(`Signup OTP prepared for ${email} via ${deliveryMode}`);
 
     res.json({
       success: true,
-      message: "User registered successfully",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        created_at: user.created_at,
-        hasFace: !!faceDescriptor,
-      },
+      message: deliveryMessage,
+      maskedEmail: maskEmailAddress(email),
+      expiresInMinutes: OTP_EXPIRY_MINUTES,
+      deliveryMode,
+      devOtp:
+        deliveryMode === "console" && !isProduction
+          ? otp
+          : undefined,
     });
   } catch (error) {
-    console.error("Registration error:", error);
+    console.error("Signup OTP request error:", error);
     res.status(500).json({
       success: false,
-      message: "Error registering user",
+      message: error.message || "Failed to send verification code",
+    });
+  }
+});
+
+app.post("/api/register/verify-otp", async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const otp = String(req.body?.otp || "").trim();
+
+  if (!dbReady) {
+    return res.status(503).json({
+      success: false,
+      message: "Database is not available",
+    });
+  }
+
+  if (!email || !otp) {
+    return res.status(400).json({
+      success: false,
+      message: "Email and OTP are required",
+    });
+  }
+
+  try {
+    const otpResult = await pool.query(
+      `SELECT id, otp_hash, payload, attempt_count, expires_at
+       FROM email_verification_otps
+       WHERE email = $1
+         AND consumed_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [email],
+    );
+
+    if (otpResult.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No active verification code found. Request a new OTP.",
+      });
+    }
+
+    const otpEntry = otpResult.rows[0];
+
+    if (new Date(otpEntry.expires_at).getTime() < Date.now()) {
+      await pool.query(
+        "UPDATE email_verification_otps SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1",
+        [otpEntry.id],
+      );
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired. Request a new code.",
+      });
+    }
+
+    if (otpEntry.attempt_count >= OTP_MAX_ATTEMPTS) {
+      await pool.query(
+        "UPDATE email_verification_otps SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1",
+        [otpEntry.id],
+      );
+      return res.status(429).json({
+        success: false,
+        message: "Too many invalid attempts. Request a new OTP.",
+      });
+    }
+
+    if (otpEntry.otp_hash !== hashOtpCode(otp)) {
+      const invalidAttemptResult = await pool.query(
+        `UPDATE email_verification_otps
+         SET attempt_count = attempt_count + 1,
+             consumed_at = CASE
+               WHEN attempt_count + 1 >= $2 THEN CURRENT_TIMESTAMP
+               ELSE consumed_at
+             END
+         WHERE id = $1
+         RETURNING attempt_count`,
+        [otpEntry.id, OTP_MAX_ATTEMPTS],
+      );
+      const attemptsUsed = invalidAttemptResult.rows[0]?.attempt_count || 1;
+      const attemptsLeft = Math.max(0, OTP_MAX_ATTEMPTS - attemptsUsed);
+
+      return res.status(attemptsLeft === 0 ? 429 : 400).json({
+        success: false,
+        message:
+          attemptsLeft === 0
+            ? "Too many invalid attempts. Request a new OTP."
+            : `Invalid OTP. ${attemptsLeft} attempt${attemptsLeft === 1 ? "" : "s"} left.`,
+      });
+    }
+
+    const signupPayload = otpEntry.payload || {};
+    const signupName = String(signupPayload.name || "").trim();
+    const passwordHash = String(signupPayload.passwordHash || "");
+    const faceDescriptor = signupPayload.faceDescriptor || null;
+
+    if (!signupName || !passwordHash) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification session is invalid. Request a new OTP.",
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const existingUser = await client.query(
+        "SELECT id FROM users WHERE email = $1 LIMIT 1",
+        [email],
+      );
+
+      if (existingUser.rows.length > 0) {
+        await client.query(
+          "UPDATE email_verification_otps SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1",
+          [otpEntry.id],
+        );
+        await client.query("COMMIT");
+        return res.status(400).json({
+          success: false,
+          message: "Email already registered",
+        });
+      }
+
+      const createUserResult = await client.query(
+        `INSERT INTO users (name, email, password, face_descriptor)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, email, created_at`,
+        [
+          signupName,
+          email,
+          passwordHash,
+          faceDescriptor ? JSON.stringify(faceDescriptor) : null,
+        ],
+      );
+
+      await client.query(
+        "UPDATE email_verification_otps SET consumed_at = CURRENT_TIMESTAMP WHERE email = $1 AND consumed_at IS NULL",
+        [email],
+      );
+
+      await client.query("COMMIT");
+
+      const user = createUserResult.rows[0];
+      console.log(`New user registered with verified email: ${email}`);
+
+      return res.json({
+        success: true,
+        message: "Email verified. Account created successfully",
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          created_at: user.created_at,
+          hasFace: Boolean(faceDescriptor),
+        },
+      });
+    } catch (transactionError) {
+      await client.query("ROLLBACK");
+      throw transactionError;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error("Signup OTP verification error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to verify OTP",
     });
   }
 });
