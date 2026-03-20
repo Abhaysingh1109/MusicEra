@@ -4,6 +4,75 @@
 const API_URL = "http://localhost:3000/api";
 let currentResults = [];
 let currentPlayerVideoId = null;
+const DISCOVERY_QUERIES = [
+  "latest hindi songs",
+  "bollywood hits",
+  "lofi chill music",
+  "punjabi songs",
+  "indie pop songs",
+  "top english songs",
+  "romantic songs",
+  "party songs mix",
+  "trending music videos",
+  "arijit singh songs",
+];
+
+const FALLBACK_VIDEOS = [
+  {
+    id: "JGwWNGJdvx8",
+    title: "Shape of You",
+    artist: "Ed Sheeran",
+    thumbnail: "https://i.ytimg.com/vi/JGwWNGJdvx8/mqdefault.jpg",
+    url: "https://www.youtube.com/watch?v=JGwWNGJdvx8",
+    type: "youtube",
+    format: "mp4",
+  },
+  {
+    id: "kJQP7kiw5Fk",
+    title: "Despacito",
+    artist: "Luis Fonsi",
+    thumbnail: "https://i.ytimg.com/vi/kJQP7kiw5Fk/mqdefault.jpg",
+    url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk",
+    type: "youtube",
+    format: "mp4",
+  },
+  {
+    id: "RgKAFK5djSk",
+    title: "See You Again",
+    artist: "Wiz Khalifa",
+    thumbnail: "https://i.ytimg.com/vi/RgKAFK5djSk/mqdefault.jpg",
+    url: "https://www.youtube.com/watch?v=RgKAFK5djSk",
+    type: "youtube",
+    format: "mp4",
+  },
+  {
+    id: "YQHsXMglC9A",
+    title: "Hello",
+    artist: "Adele",
+    thumbnail: "https://i.ytimg.com/vi/YQHsXMglC9A/mqdefault.jpg",
+    url: "https://www.youtube.com/watch?v=YQHsXMglC9A",
+    type: "youtube",
+    format: "mp4",
+  },
+  {
+    id: "fLexgOxsZu0",
+    title: "Uptown Funk",
+    artist: "Mark Ronson ft. Bruno Mars",
+    thumbnail: "https://i.ytimg.com/vi/fLexgOxsZu0/mqdefault.jpg",
+    url: "https://www.youtube.com/watch?v=fLexgOxsZu0",
+    type: "youtube",
+    format: "mp4",
+  },
+  {
+    id: "hT_nvWreIhg",
+    title: "Counting Stars",
+    artist: "OneRepublic",
+    thumbnail: "https://i.ytimg.com/vi/hT_nvWreIhg/mqdefault.jpg",
+    url: "https://www.youtube.com/watch?v=hT_nvWreIhg",
+    type: "youtube",
+    format: "mp4",
+  },
+];
 
 // DOM Elements
 const searchInput = document.getElementById("musicSearchInput");
@@ -14,6 +83,15 @@ const loadingSpinner = document.getElementById("loadingSpinner");
 const noResultsMsg = document.getElementById("noResultsMsg");
 const resultsCount = document.getElementById("resultsCount");
 const clearBtn = document.getElementById("clearSearch");
+const shuffleFeedBtn = document.getElementById("shuffleFeedBtn");
+const recommendationTitle = document.getElementById("recommendationTitle");
+const genreChips = document.querySelectorAll(".genre-chip");
+
+let feedMode = "recommended";
+let activeGenreLabel = "For You";
+let activeGenreQuery = "";
+const SKELETON_BATCH_SIZE = 4;
+let nextPageToken = "";
 
 // Initialize dashboard functionality
 document.addEventListener("DOMContentLoaded", () => {
@@ -29,10 +107,164 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (searchInput) searchInput.focus();
   initEventListeners();
+  loadInitialFeed();
 });
+
+function setRecommendationHeader(titleText) {
+  if (recommendationTitle) {
+    recommendationTitle.textContent = titleText;
+  }
+}
+
+function setActiveGenreChip(label) {
+  genreChips.forEach((chip) => {
+    chip.classList.toggle("active", chip.dataset.label === label);
+  });
+}
+
+function pickRandomQuery() {
+  const index = Math.floor(Math.random() * DISCOVERY_QUERIES.length);
+  return DISCOVERY_QUERIES[index];
+}
+
+async function requestSearch(query, pageToken = "") {
+  const body = {
+    query,
+    format: currentFormat,
+    pageToken,
+  };
+
+  const response = await fetch(`${API_URL}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  return response.json();
+}
+
+async function fetchAndApplyResults(
+  query,
+  isLoadMore = false,
+  shuffle = false,
+) {
+  if (!query) {
+    return false;
+  }
+
+  try {
+    const data = await requestSearch(query, isLoadMore ? nextPageToken : "");
+
+    if (!data.success) {
+      if (isLoadMore) {
+        showLoadMoreSpinner(false);
+      }
+      showNotification(data.message || "Search failed", "error");
+      return false;
+    }
+
+    const nextResults = Array.isArray(data.results) ? data.results : [];
+
+    if (isLoadMore) {
+      const startIndex = currentResults.length;
+      currentResults = [...currentResults, ...nextResults];
+      appendResults(nextResults, startIndex);
+      showLoadMoreSpinner(false);
+    } else {
+      currentResults = shuffle
+        ? [...nextResults].sort(() => Math.random() - 0.5)
+        : nextResults;
+      clearPlayer();
+      renderResults();
+    }
+
+    nextPageToken = data.nextPageToken || "";
+    hasMore = Boolean(nextPageToken);
+    currentQuery = query;
+    noResultsMsg.style.display = "none";
+    updateResultsCount();
+    initInfiniteScroll();
+    return true;
+  } catch (error) {
+    console.error("Feed fetch error:", error);
+    if (isLoadMore) {
+      showLoadMoreSpinner(false);
+    }
+    showNotification("Server connection error", "error");
+    return false;
+  } finally {
+    if (isLoadMore) {
+      removeSkeletonLoaders();
+    }
+    loadingMore = false;
+  }
+}
+
+function loadFallbackFeed() {
+  feedMode = "recommended";
+  currentResults = [...FALLBACK_VIDEOS].sort(() => Math.random() - 0.5);
+  nextPageToken = "";
+  hasMore = false;
+  currentQuery = "";
+  if (infiniteObserver) {
+    infiniteObserver.disconnect();
+    infiniteObserver = null;
+  }
+  noResultsMsg.style.display = "none";
+  renderResults();
+  if (resultsCount) {
+    resultsCount.textContent = `${currentResults.length} recommended songs`;
+  }
+}
+
+async function loadInitialFeed(customQuery = "", customLabel = "For You") {
+  const query = customQuery || pickRandomQuery();
+  feedMode = "recommended";
+  activeGenreQuery = customQuery;
+  activeGenreLabel = customLabel;
+  setRecommendationHeader(
+    `Recommended for you${customLabel && customLabel !== "For You" ? ` - ${customLabel}` : ""}`,
+  );
+  setActiveGenreChip(customLabel);
+
+  showLoading(true);
+
+  if (resultsCount) {
+    resultsCount.textContent = "Loading recommendations...";
+  }
+
+  try {
+    const loaded = await fetchAndApplyResults(query, false, true);
+    if (!loaded || currentResults.length === 0) {
+      loadFallbackFeed();
+    }
+  } catch (error) {
+    console.error("Initial feed error:", error);
+    loadFallbackFeed();
+  } finally {
+    showLoading(false);
+  }
+}
 
 function initEventListeners() {
   if (searchBtn) searchBtn.addEventListener("click", handleSearch);
+  if (shuffleFeedBtn) {
+    shuffleFeedBtn.addEventListener("click", () => {
+      loadInitialFeed(activeGenreQuery, activeGenreLabel);
+    });
+  }
+
+  genreChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const chipLabel = chip.dataset.label || "For You";
+      const chipQuery = chip.dataset.query || "";
+      if (searchInput) {
+        searchInput.value = "";
+      }
+      loadInitialFeed(chipQuery, chipLabel);
+    });
+  });
+
   if (searchInput) {
     searchInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter") handleSearch();
@@ -55,7 +287,6 @@ function debounce(func, wait) {
 }
 
 let currentFormat = "mp4"; // MP3 DISABLED - locked to MP4
-let currentPage = 1;
 let hasMore = true;
 let loadingMore = false;
 let infiniteObserver = null;
@@ -85,6 +316,9 @@ async function handleSearch(isLoadMore = false) {
     return;
   }
 
+  feedMode = "search";
+  setRecommendationHeader("Search results");
+
   if (isLoadMore) {
     showLoadMoreSpinner(true);
   } else {
@@ -92,36 +326,7 @@ async function handleSearch(isLoadMore = false) {
   }
 
   try {
-    const body = {
-      query,
-      format: currentFormat,
-      page: isLoadMore ? currentPage : 1,
-    };
-    const response = await fetch(`${API_URL}/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      if (isLoadMore) {
-        currentResults = [...currentResults, ...data.results];
-        hasMore = data.hasMore || data.results.length === 20;
-        showLoadMoreSpinner(false);
-      } else {
-        currentResults = data.results;
-        currentPage = 1;
-        hasMore = data.hasMore || data.results.length === 20;
-        currentQuery = query;
-      }
-      renderResults();
-      clearPlayer();
-      initInfiniteScroll();
-    } else {
-      showNotification(data.message || "Search failed", "error");
-    }
+    await fetchAndApplyResults(query, isLoadMore, false);
   } catch (error) {
     console.error("Search error:", error);
     showNotification("Server connection error", "error");
@@ -137,17 +342,29 @@ function renderResults() {
   if (currentResults.length === 0) {
     searchResults.innerHTML = "";
     noResultsMsg.style.display = "block";
-    if (resultsCount) resultsCount.textContent = `0 MP4 results`; // MP3 DISABLED
+    updateResultsCount();
     return;
   }
 
   noResultsMsg.style.display = "none";
-  if (resultsCount)
-    resultsCount.textContent = `${currentResults.length} MP4 results`; // MP3 DISABLED
+  updateResultsCount();
 
   const html = currentResults
-    .map(
-      (video, index) => `
+    .map((video) => createMusicCardMarkup(video))
+    .join("");
+
+  searchResults.innerHTML = html;
+
+  // Animate new results
+  const cards = document.querySelectorAll(".music-card");
+  cards.forEach((card, index) => {
+    card.style.animationDelay = `${index * 0.05}s`;
+    card.classList.add("fade-in");
+  });
+}
+
+function createMusicCardMarkup(video) {
+  return `
         <div class="music-card" data-video-id="${video.id || video.videoId}" onclick="toggleInlinePlay('${video.id || video.videoId}')">
             <div class="card-thumbnail">
                 <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
@@ -167,18 +384,84 @@ function renderResults() {
                 <p class="card-channel">${video.channelTitle || video.channel || video.artist}</p>
             </div>
         </div>
-    `,
-    )
+    `;
+}
+
+function appendResults(nextResults, startIndex) {
+  if (!Array.isArray(nextResults) || nextResults.length === 0) {
+    return;
+  }
+
+  removeSkeletonLoaders();
+
+  const existingSentinel = document.getElementById("load-more-sentinel");
+  if (existingSentinel) {
+    existingSentinel.remove();
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = nextResults
+    .map((video) => createMusicCardMarkup(video))
     .join("");
+  const newCards = Array.from(wrapper.children);
 
-  searchResults.innerHTML = html;
-
-  // Animate new results
-  const cards = document.querySelectorAll(".music-card");
-  cards.forEach((card, index) => {
-    card.style.animationDelay = `${index * 0.05}s`;
+  newCards.forEach((card, offset) => {
+    card.style.animationDelay = `${(startIndex + offset) * 0.05}s`;
     card.classList.add("fade-in");
+    searchResults.appendChild(card);
   });
+}
+
+function updateResultsCount() {
+  if (!resultsCount) {
+    return;
+  }
+
+  if (currentResults.length === 0) {
+    resultsCount.textContent =
+      feedMode === "recommended" ? "0 recommended songs" : "0 MP4 results";
+    return;
+  }
+
+  resultsCount.textContent =
+    feedMode === "recommended"
+      ? `${currentResults.length} recommended songs`
+      : `${currentResults.length} MP4 results`;
+}
+
+function createSkeletonCardMarkup() {
+  return `
+        <div class="music-card skeleton-card" aria-hidden="true">
+            <div class="card-thumbnail skeleton-thumb"></div>
+            <div class="card-info skeleton-info">
+                <div class="skeleton-line skeleton-line-title"></div>
+                <div class="skeleton-line skeleton-line-subtitle"></div>
+            </div>
+        </div>
+    `;
+}
+
+function showSkeletonLoaders(count = SKELETON_BATCH_SIZE) {
+  removeSkeletonLoaders();
+
+  const sentinel = document.getElementById("load-more-sentinel");
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = new Array(count)
+    .fill(createSkeletonCardMarkup())
+    .join("");
+  const skeletonCards = Array.from(wrapper.children);
+
+  skeletonCards.forEach((card) => {
+    if (sentinel) {
+      searchResults.insertBefore(card, sentinel);
+    } else {
+      searchResults.appendChild(card);
+    }
+  });
+}
+
+function removeSkeletonLoaders() {
+  document.querySelectorAll(".skeleton-card").forEach((el) => el.remove());
 }
 
 function playTrack(id, title, url, type) {
@@ -322,12 +605,12 @@ function formatTime(seconds) {
 
 function clearSearch() {
   searchInput.value = "";
-  currentResults = [];
   searchResults.innerHTML = "";
   playerContainer.innerHTML = "";
   noResultsMsg.style.display = "none";
-  if (resultsCount) resultsCount.textContent = `0 MP4 results`; // MP3 DISABLED
+  if (resultsCount) resultsCount.textContent = "Loading recommendations...";
   currentPlayerVideoId = null;
+  loadInitialFeed(activeGenreQuery, activeGenreLabel);
 }
 
 function truncateText(text, maxLength) {
@@ -402,14 +685,12 @@ function onSearchInput() {
       clearBtn.style.pointerEvents = "none";
     }
     currentResults = [];
-    currentPage = 1;
-    hasMore = true;
-    renderResults();
     clearPlayer();
     if (infiniteObserver) {
       infiniteObserver.disconnect();
       infiniteObserver = null;
     }
+    loadInitialFeed(activeGenreQuery, activeGenreLabel);
   }
 }
 
@@ -432,7 +713,9 @@ function initInfiniteScroll() {
           entry.isIntersecting &&
           hasMore &&
           !loadingMore &&
-          currentQuery === searchInput.value.trim()
+          ((feedMode === "search" &&
+            currentQuery === searchInput.value.trim()) ||
+            (feedMode === "recommended" && !!currentQuery))
         ) {
           loadMore();
         }
@@ -446,9 +729,15 @@ function initInfiniteScroll() {
 
 async function loadMore() {
   if (loadingMore || !hasMore) return;
+
+  const queryForMore =
+    feedMode === "search" ? searchInput.value.trim() : currentQuery;
+  if (!queryForMore) return;
+
   loadingMore = true;
-  currentPage++;
-  await handleSearch(true); // isLoadMore = true
+  showLoadMoreSpinner(true);
+  showSkeletonLoaders();
+  await fetchAndApplyResults(queryForMore, true, false);
 }
 
 function showLoadMoreSpinner(show) {
@@ -482,66 +771,65 @@ function showLoadMoreSpinner(show) {
 //     `;
 //   header.parentNode.insertBefore(userBar, header.nextSibling);
 
-  // Add CSS if needed (inline)
-  //   if (!document.getElementById("userBarStyles")) {
-  //     const style = document.createElement("style");
-  //     style.id = "userBarStyles";
-  //     style.textContent = `
-  // #userBar {
-  //                 display: flex !important;
-  //                 align-items: center !important;
-  //                 gap: 20px !important;
-  //                 padding: 16px 32px !important;
-  //                 background: rgba(255,255,255,0.15) !important;
-  //                 backdrop-filter: blur(25px) !important;
-  //                 border-radius: 20px !important;
-  //                 margin: 20px auto !important;
-  //                 max-width: 800px !important;
-  //                 border: 1px solid rgba(255,255,255,0.25) !important;
-  //                 box-shadow: 0 12px 40px rgba(0,0,0,0.15) !important;
-  //                 flex-wrap: wrap !important;
-  //             }
+// Add CSS if needed (inline)
+//   if (!document.getElementById("userBarStyles")) {
+//     const style = document.createElement("style");
+//     style.id = "userBarStyles";
+//     style.textContent = `
+// #userBar {
+//                 display: flex !important;
+//                 align-items: center !important;
+//                 gap: 20px !important;
+//                 padding: 16px 32px !important;
+//                 background: rgba(255,255,255,0.15) !important;
+//                 backdrop-filter: blur(25px) !important;
+//                 border-radius: 20px !important;
+//                 margin: 20px auto !important;
+//                 max-width: 800px !important;
+//                 border: 1px solid rgba(255,255,255,0.25) !important;
+//                 box-shadow: 0 12px 40px rgba(0,0,0,0.15) !important;
+//                 flex-wrap: wrap !important;
+//             }
 
-  //             .user-avatar i { font-size: 32px; color: #3b82f6; }
-  //             .user-info { flex: 1; }
-  //             .user-name { display: block; font-weight: 600; color: white; }
-  //             .user-email { display: block; font-size: 0.85em; color: rgba(255,255,255,0.8); }
-  //             .logout-btn {
-  //                 background: rgba(239,68,68,0.2);
-  //                 border: 1px solid rgba(239,68,68,0.4);
-  //                 color: #f87171;
-  //                 padding: 8px 16px;
-  //                 border-radius: 8px;
-  //                 cursor: pointer;
-  //                 font-size: 0.9em;
-  //                 transition: all 0.2s;
-  //             }
-  //             .logout-btn:hover { background: rgba(239,68,68,0.3); }
-  //             .back-btn {
-  //                 background: rgba(99,102,241,0.2);
-  //                 border: 1px solid rgba(99,102,241,0.4);
-  //                 color: #6366f1;
-  //                 padding: 8px 16px;
-  //                 border-radius: 8px;
-  //                 cursor: pointer;
-  //                 font-size: 0.9em;
-  //                 transition: all 0.2s;
-  //             }
-  //             .back-btn:hover { 
-  //                 background: rgba(99,102,241,0.3); 
-  //                 transform: translateX(-2px);
-  //             }
-  //         `;
-  //     document.head.appendChild(style);
-  //   }
-  // }
+//             .user-avatar i { font-size: 32px; color: #3b82f6; }
+//             .user-info { flex: 1; }
+//             .user-name { display: block; font-weight: 600; color: white; }
+//             .user-email { display: block; font-size: 0.85em; color: rgba(255,255,255,0.8); }
+//             .logout-btn {
+//                 background: rgba(239,68,68,0.2);
+//                 border: 1px solid rgba(239,68,68,0.4);
+//                 color: #f87171;
+//                 padding: 8px 16px;
+//                 border-radius: 8px;
+//                 cursor: pointer;
+//                 font-size: 0.9em;
+//                 transition: all 0.2s;
+//             }
+//             .logout-btn:hover { background: rgba(239,68,68,0.3); }
+//             .back-btn {
+//                 background: rgba(99,102,241,0.2);
+//                 border: 1px solid rgba(99,102,241,0.4);
+//                 color: #6366f1;
+//                 padding: 8px 16px;
+//                 border-radius: 8px;
+//                 cursor: pointer;
+//                 font-size: 0.9em;
+//                 transition: all 0.2s;
+//             }
+//             .back-btn:hover {
+//                 background: rgba(99,102,241,0.3);
+//                 transform: translateX(-2px);
+//             }
+//         `;
+//     document.head.appendChild(style);
+//   }
+// }
 
-  // window.goToEmotions = function () {
-  //   window.location.href = "emotion.html";
-  // };
+// window.goToEmotions = function () {
+//   window.location.href = "emotion.html";
+// };
 
-  // window.logout = function () {
-  //   sessionStorage.removeItem("userData");
-  //   window.location.href = "index.html";
-  // };
-
+// window.logout = function () {
+//   sessionStorage.removeItem("userData");
+//   window.location.href = "index.html";
+// };
