@@ -478,6 +478,7 @@ async function detectFace() {
                 sessionStorage.setItem(
                   "userData",
                   JSON.stringify({
+                    id: data.user.id,
                     name: data.user.name,
                     email: data.user.email,
                     hasFace: true,
@@ -562,6 +563,7 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
       sessionStorage.setItem(
         "userData",
         JSON.stringify({
+          id: data.user.id,
           name: data.user.name,
           email: data.user.email,
           hasFace: data.user.hasFace,
