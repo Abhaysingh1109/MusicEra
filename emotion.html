@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         body.has-navbar .emotion-page {
             padding-top: 100px;
@@ -534,8 +535,14 @@
         const cameraGuidanceEl = document.getElementById('cameraGuidance');
 
         let emotionStream = null;
-        let detectionInterval = null;
+        let detectionTimer = null;
         let detectionInFlight = false;
+        let emotionHistory = [];
+        let lastSuccessfulEmotion = null;
+        let activeDetectionController = null;
+        let faceApiReady = false;
+        let faceApiLoading = null;
+        let lastFaceBox = null;
 
         // Navbar functionality
         document.addEventListener('DOMContentLoaded', function() {
@@ -555,6 +562,8 @@
                     dropdown.classList.remove('active');
                 }
             });
+
+            loadEmotionFaceApi();
         });
 
         // Auth Guard & user data
@@ -580,20 +589,21 @@
 
             try {
                 emotionStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user' },
+                    video: {
+                        facingMode: 'user',
+                        width: { ideal: 640, max: 640 },
+                        height: { ideal: 480, max: 480 },
+                        frameRate: { ideal: 15, max: 24 }
+                    },
                     audio: false
                 });
 
                 emotionVideo.srcObject = emotionStream;
-                cameraGuidanceEl.textContent = 'The detector checks your face every 2 seconds and updates the emotion lines automatically.';
+                cameraGuidanceEl.textContent = 'Keep your face near the center and hold the expression for a moment. Detection updates automatically.';
                 setEmotionStatus('success', 'Camera is live. Detecting emotion...');
 
                 await emotionVideo.play();
                 await detectEmotionNow();
-
-                detectionInterval = window.setInterval(() => {
-                    detectEmotionNow();
-                }, 2000);
             } catch (error) {
                 console.error('Camera access error:', error);
                 setEmotionStatus('error', 'Camera access failed. Please allow permission and try again.');
@@ -605,9 +615,9 @@
         function closeEmotionDetection() {
             emotionModal.classList.remove('active');
 
-            if (detectionInterval) {
-                window.clearInterval(detectionInterval);
-                detectionInterval = null;
+            if (detectionTimer) {
+                window.clearTimeout(detectionTimer);
+                detectionTimer = null;
             }
 
             if (emotionStream) {
@@ -615,8 +625,16 @@
                 emotionStream = null;
             }
 
+            if (activeDetectionController) {
+                activeDetectionController.abort();
+                activeDetectionController = null;
+            }
+
             emotionVideo.srcObject = null;
             detectionInFlight = false;
+            emotionHistory = [];
+            lastSuccessfulEmotion = null;
+            lastFaceBox = null;
             setEmotionStatus('info', 'Waiting to start camera...');
         }
 
@@ -626,37 +644,127 @@
             }
 
             detectionInFlight = true;
+            activeDetectionController = new AbortController();
+            const timeoutId = window.setTimeout(() => {
+                if (activeDetectionController) {
+                    activeDetectionController.abort();
+                }
+            }, 2500);
             setEmotionStatus('info', 'Analyzing your facial expression...');
 
             try {
-                const image = captureFrame();
-                const response = await fetch(`${API_URL}/emotion-detect`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ image })
-                });
+                const result = (await detectEmotionInBrowser()) || (await detectEmotionOnServer());
 
-                const result = await response.json();
-
-                if (!response.ok || !result.success) {
-                    throw new Error(result.error || result.message || 'Emotion detection failed');
-                }
-
-                const dominantEmotion = formatEmotionLabel(result.dominantEmotion || 'unknown');
+                const smoothedResult = smoothEmotionResult(result.emotions || []);
+                const dominantEmotion = formatEmotionLabel(smoothedResult.dominantEmotion || result.dominantEmotion || 'unknown');
+                lastSuccessfulEmotion = dominantEmotion;
                 dominantEmotionEl.textContent = dominantEmotion;
                 emotionHelperEl.textContent = `Current mood detected from your face: ${dominantEmotion}. The lines below show the confidence for each expression.`;
-                renderEmotionLines(result.emotions || []);
-                setEmotionStatus('success', 'Expression detected successfully.');
+                renderEmotionLines(smoothedResult.emotions);
+                setEmotionStatus('success', faceApiReady ? 'Expression detected live in browser.' : 'Expression detected successfully.');
             } catch (error) {
                 console.error('Emotion detection request failed:', error);
-                setEmotionStatus('error', error.message || 'Emotion detection failed.');
-                dominantEmotionEl.textContent = 'Detection failed';
-                emotionHelperEl.textContent = error.message || 'Emotion detection failed.';
+                const message = error.name === 'AbortError'
+                    ? 'Detection took too long. Retrying...'
+                    : (error.message || 'Emotion detection failed.');
+                setEmotionStatus('error', message);
+                dominantEmotionEl.textContent = lastSuccessfulEmotion || 'Detection failed';
+                emotionHelperEl.textContent = message;
             } finally {
+                window.clearTimeout(timeoutId);
+                activeDetectionController = null;
                 detectionInFlight = false;
+                scheduleNextDetection();
             }
+        }
+
+        async function loadEmotionFaceApi() {
+            if (faceApiLoading || faceApiReady || typeof faceapi === 'undefined') {
+                return faceApiLoading;
+            }
+
+            faceApiLoading = (async () => {
+                const modelUrls = [
+                    'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model',
+                    'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models'
+                ];
+
+                for (const modelUrl of modelUrls) {
+                    try {
+                        await Promise.all([
+                            faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+                            faceapi.nets.faceExpressionNet.loadFromUri(modelUrl)
+                        ]);
+                        faceApiReady = true;
+                        return;
+                    } catch (error) {
+                        console.warn('Face API model load failed:', modelUrl, error);
+                    }
+                }
+            })();
+
+            return faceApiLoading;
+        }
+
+        async function detectEmotionInBrowser() {
+            await loadEmotionFaceApi();
+
+            if (!faceApiReady || typeof faceapi === 'undefined') {
+                return null;
+            }
+
+            const detection = await faceapi
+                .detectSingleFace(
+                    emotionVideo,
+                    new faceapi.TinyFaceDetectorOptions({
+                        inputSize: 224,
+                        scoreThreshold: 0.45
+                    })
+                )
+                .withFaceExpressions();
+
+            if (!detection || !detection.expressions) {
+                lastFaceBox = null;
+                throw new Error('No clear face detected. Center your face and try again.');
+            }
+
+            lastFaceBox = detection.detection.box;
+            return normalizeBrowserExpressions(detection.expressions);
+        }
+
+        async function detectEmotionOnServer() {
+            const image = captureFrame();
+            const response = await fetch(`${API_URL}/emotion-detect`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ image }),
+                signal: activeDetectionController.signal
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || result.message || 'Emotion detection failed');
+            }
+
+            return result;
+        }
+
+        function scheduleNextDetection(delay = 450) {
+            if (!emotionStream) {
+                return;
+            }
+
+            if (detectionTimer) {
+                window.clearTimeout(detectionTimer);
+            }
+
+            detectionTimer = window.setTimeout(() => {
+                detectionTimer = null;
+                detectEmotionNow();
+            }, delay);
         }
 
         function goToEmotionHistory() {
@@ -674,15 +782,94 @@
         };
 
         function captureFrame() {
-            const width = emotionVideo.videoWidth || 640;
-            const height = emotionVideo.videoHeight || 480;
-            emotionCanvas.width = width;
-            emotionCanvas.height = height;
+            const sourceWidth = emotionVideo.videoWidth || 640;
+            const sourceHeight = emotionVideo.videoHeight || 480;
+            const fallbackCropWidth = Math.round(sourceWidth * 0.62);
+            const fallbackCropHeight = Math.round(sourceHeight * 0.82);
+            const fallbackSx = Math.max(0, Math.round((sourceWidth - fallbackCropWidth) / 2));
+            const fallbackSy = Math.max(0, Math.round((sourceHeight - fallbackCropHeight) / 2) - Math.round(sourceHeight * 0.04));
+            const detectedBox = lastFaceBox;
+            const cropWidth = detectedBox
+                ? Math.min(sourceWidth, Math.round(detectedBox.width * 1.9))
+                : fallbackCropWidth;
+            const cropHeight = detectedBox
+                ? Math.min(sourceHeight, Math.round(detectedBox.height * 2.2))
+                : fallbackCropHeight;
+            const sx = detectedBox
+                ? Math.max(0, Math.round(detectedBox.x + (detectedBox.width / 2) - (cropWidth / 2)))
+                : fallbackSx;
+            const sy = detectedBox
+                ? Math.max(0, Math.round(detectedBox.y + (detectedBox.height / 2) - (cropHeight * 0.44)))
+                : fallbackSy;
+            const targetWidth = 256;
+            const targetHeight = 320;
+            emotionCanvas.width = targetWidth;
+            emotionCanvas.height = targetHeight;
 
             const context = emotionCanvas.getContext('2d');
-            context.drawImage(emotionVideo, 0, 0, width, height);
+            context.drawImage(
+                emotionVideo,
+                sx,
+                sy,
+                cropWidth,
+                cropHeight,
+                0,
+                0,
+                targetWidth,
+                targetHeight
+            );
 
-            return emotionCanvas.toDataURL('image/jpeg', 0.85);
+            return emotionCanvas.toDataURL('image/jpeg', 0.72);
+        }
+
+        function normalizeBrowserExpressions(expressions) {
+            const mapped = [
+                { label: 'angry', score: Number(expressions.angry || 0) * 100 },
+                { label: 'disgust', score: Number(expressions.disgusted || 0) * 100 },
+                { label: 'fear', score: Number(expressions.fearful || 0) * 100 },
+                { label: 'happy', score: Number(expressions.happy || 0) * 100 },
+                { label: 'neutral', score: Number(expressions.neutral || 0) * 100 },
+                { label: 'sad', score: Number(expressions.sad || 0) * 100 },
+                { label: 'surprise', score: Number(expressions.surprised || 0) * 100 }
+            ]
+                .map((emotion) => ({
+                    label: emotion.label,
+                    score: Math.round(emotion.score * 100) / 100
+                }))
+                .sort((a, b) => b.score - a.score);
+
+            return {
+                dominantEmotion: mapped[0]?.label || null,
+                emotions: mapped
+            };
+        }
+
+        function smoothEmotionResult(emotions) {
+            emotionHistory.push(emotions);
+            if (emotionHistory.length > 2) {
+                emotionHistory.shift();
+            }
+
+            const scoreMap = new Map();
+            emotionHistory.forEach((frameEmotions, index) => {
+                const weight = index === emotionHistory.length - 1 ? 0.65 : 0.35;
+                frameEmotions.forEach((emotion) => {
+                    const label = String(emotion.label || '');
+                    scoreMap.set(label, (scoreMap.get(label) || 0) + (Number(emotion.score || 0) * weight));
+                });
+            });
+
+            const averagedEmotions = Array.from(scoreMap.entries())
+                .map(([label, total]) => ({
+                    label,
+                    score: total
+                }))
+                .sort((a, b) => b.score - a.score);
+
+            return {
+                dominantEmotion: averagedEmotions[0]?.label || null,
+                emotions: averagedEmotions
+            };
         }
 
         function renderEmotionLines(emotions) {
