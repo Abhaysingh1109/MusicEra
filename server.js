@@ -17,7 +17,8 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 const PYTHON_BIN =
-  process.env.PYTHON_BIN || "/Library/Developer/CommandLineTools/usr/bin/python3";
+  process.env.PYTHON_BIN ||
+  "/Library/Developer/CommandLineTools/usr/bin/python3";
 const EMOTION_REQUEST_TIMEOUT_MS = parseInt(
   process.env.EMOTION_REQUEST_TIMEOUT_MS || "6000",
   10,
@@ -68,7 +69,9 @@ function normalizeEmotionScores(emotions = []) {
   }
 
   return emotions.reduce((accumulator, emotion) => {
-    const label = String(emotion?.label || "").trim().toLowerCase();
+    const label = String(emotion?.label || "")
+      .trim()
+      .toLowerCase();
     if (!label) {
       return accumulator;
     }
@@ -157,7 +160,10 @@ async function initializeDatabase() {
           `);
     }
 
-    if (emotionHistoryColumns.has("emotion") && emotionHistoryColumns.has("confidence")) {
+    if (
+      emotionHistoryColumns.has("emotion") &&
+      emotionHistoryColumns.has("confidence")
+    ) {
       await pool.query(`
               UPDATE emotion_history
               SET emotion_scores = jsonb_build_object(
@@ -833,13 +839,15 @@ MP3 FEATURE DISABLED */
 
 // MP3 search with infinite pagination & working audio URLs
 app.post("/api/search", async (req, res) => {
-  const { query, format = "mp4", page = 1 } = req.body;
+  const { query, format = "mp4", pageToken = "" } = req.body;
   const perPage = 20;
   if (!query)
     return res.status(400).json({ success: false, message: "Query required" });
 
   try {
-    let allResults = [];
+    let results = [];
+    let nextPageToken = null;
+
     if (format === "mp4") {
       const ytKey = process.env.YOUTUBE_API_KEY || "demo";
       const { data } = await axios.get(
@@ -849,26 +857,33 @@ app.post("/api/search", async (req, res) => {
             part: "snippet",
             q: query.trim(),
             type: "video",
-            videoCategoryId: "10",
-            maxResults: 50,
+            order: "relevance",
+            safeSearch: "none",
+            maxResults: perPage,
+            pageToken: pageToken || undefined,
             key: ytKey,
           },
         },
       );
-      allResults = data.items.map((i) => ({
-        id: i.id.videoId,
-        title: i.snippet.title,
-        artist: i.snippet.channelTitle,
-        thumbnail: i.snippet.thumbnails.medium.url,
-        url: `https://www.youtube.com/watch?v=${i.id.videoId}`,
-        type: "youtube",
-        format,
-      }));
+
+      results = (data.items || [])
+        .filter((i) => i?.id?.videoId)
+        .map((i) => ({
+          id: i.id.videoId,
+          title: i.snippet.title,
+          artist: i.snippet.channelTitle,
+          thumbnail: i.snippet.thumbnails.medium.url,
+          url: `https://www.youtube.com/watch?v=${i.id.videoId}`,
+          type: "youtube",
+          format,
+        }));
+
+      nextPageToken = data.nextPageToken || null;
     } /* else {
       // Reliable free MP3 URLs + infinite - MP3 DISABLED
       for (let i = 1; i <= perPage * 2; i++) {
-        allResults.push({
-          id: `demo${(page - 1) * perPage + i}`,
+        results.push({
+          id: `demo${i}`,
           title: `${query} Track ${i}`,
           artist: `Demo Artist ${i}`,
           thumbnail: "/audio.svg",
@@ -877,13 +892,14 @@ app.post("/api/search", async (req, res) => {
           format: "mp3",
         });
       }
+      nextPageToken = null;
     } */
-    const startIdx = (page - 1) * perPage;
-    const results = allResults.slice(startIdx, startIdx + perPage);
+
     res.json({
       success: true,
       results,
-      hasMore: allResults.length > startIdx + perPage,
+      hasMore: Boolean(nextPageToken),
+      nextPageToken,
     });
   } catch (e) {
     res.status(500).json({ success: false, message: "Search failed" });

@@ -249,6 +249,20 @@
 
             <!-- Results Header -->
             <div class="results-header">
+                <div class="results-header-top">
+                    <h3 id="recommendationTitle" class="recommendation-title">Recommended for you</h3>
+                    <button id="shuffleFeedBtn" class="shuffle-feed-btn" type="button">
+                        <i class="fas fa-shuffle"></i>
+                        Shuffle
+                    </button>
+                </div>
+                <div id="genreChips" class="genre-chips" aria-label="Music categories">
+                    <button class="genre-chip active" type="button" data-label="For You" data-query="">For You</button>
+                    <button class="genre-chip" type="button" data-label="Pop" data-query="top pop songs">Pop</button>
+                    <button class="genre-chip" type="button" data-label="Lo-fi" data-query="lofi chill beats">Lo-fi</button>
+                    <button class="genre-chip" type="button" data-label="Bollywood" data-query="latest bollywood songs">Bollywood</button>
+                    <button class="genre-chip" type="button" data-label="Punjabi" data-query="trending punjabi songs">Punjabi</button>
+                </div>
                 <span id="resultsCount">0 results</span>
             </div>
 
