@@ -63,6 +63,37 @@ let emotionWorkerReady = null;
 let emotionWorkerRequestId = 0;
 const pendingEmotionRequests = new Map();
 
+const EMOTION_LOOKBACK_DAYS = Math.max(
+  1,
+  parseInt(process.env.EMOTION_LOOKBACK_DAYS || "3", 10),
+);
+
+const MOOD_KEYWORDS = {
+  happy: [
+    "happy",
+    "party",
+    "dance",
+    "upbeat",
+    "fun",
+    "celebration",
+    "feel good",
+  ],
+  sad: [
+    "sad",
+    "emotional",
+    "heartbreak",
+    "lonely",
+    "melancholy",
+    "acoustic",
+    "slow",
+  ],
+  angry: ["rock", "metal", "rap", "hard", "power", "rage", "intense"],
+  fear: ["calm", "relax", "meditation", "healing", "soft", "ambient"],
+  disgust: ["clean", "detox", "fresh", "reset", "focus", "chill"],
+  surprise: ["new", "trending", "viral", "remix", "latest", "fresh"],
+  neutral: ["chill", "lofi", "focus", "instrumental", "ambient", "calm"],
+};
+
 function normalizeEmotionScores(emotions = []) {
   if (!Array.isArray(emotions)) {
     return {};
@@ -82,6 +113,143 @@ function normalizeEmotionScores(emotions = []) {
     );
     return accumulator;
   }, {});
+}
+
+function normalizeMoodLabel(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  return normalized || "neutral";
+}
+
+function getDayWeight(targetDate) {
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(targetDate).getTime();
+  const dayDiff = Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
+
+  if (dayDiff === 0) {
+    return 1.0;
+  }
+  if (dayDiff === 1) {
+    return 0.72;
+  }
+
+  return 0.45;
+}
+
+function scoreSongsByMood(results, dominantMood) {
+  const keywords = MOOD_KEYWORDS[dominantMood] || MOOD_KEYWORDS.neutral;
+  if (!Array.isArray(results) || results.length === 0) {
+    return [];
+  }
+
+  return results
+    .map((song, index) => {
+      const haystack =
+        `${song?.title || ""} ${song?.artist || ""} ${song?.channelTitle || ""}`.toLowerCase();
+      let keywordScore = 0;
+
+      for (let i = 0; i < keywords.length; i += 1) {
+        if (haystack.includes(keywords[i])) {
+          keywordScore += 1 + (keywords.length - i) * 0.06;
+        }
+      }
+
+      const relevanceScore = (results.length - index) / results.length;
+      const finalScore = keywordScore * 0.7 + relevanceScore * 0.3;
+
+      return {
+        ...song,
+        moodScore: Number(finalScore.toFixed(4)),
+      };
+    })
+    .sort((a, b) => b.moodScore - a.moodScore);
+}
+
+async function resolveUserIdentity(userId, email) {
+  let resolvedUserId = Number(userId) || null;
+  let resolvedEmail = String(email || "").trim() || null;
+
+  if (!resolvedUserId && resolvedEmail) {
+    const userLookup = await pool.query(
+      "SELECT id FROM users WHERE email = $1 LIMIT 1",
+      [resolvedEmail],
+    );
+    resolvedUserId = userLookup.rows[0]?.id || null;
+  }
+
+  if (!resolvedEmail && resolvedUserId) {
+    const userLookup = await pool.query(
+      "SELECT email FROM users WHERE id = $1 LIMIT 1",
+      [resolvedUserId],
+    );
+    resolvedEmail = userLookup.rows[0]?.email || null;
+  }
+
+  return {
+    userId: resolvedUserId,
+    email: resolvedEmail,
+  };
+}
+
+async function getMoodProfileFromHistory(resolvedUserId, lookbackDays) {
+  const scoreByMood = new Map();
+
+  const emotionHistoryResult = await pool.query(
+    `SELECT dominant_emotion, emotion_scores, detected_at
+     FROM emotion_history
+     WHERE user_id = $1
+       AND detected_at >= (CURRENT_TIMESTAMP - ($2::int * INTERVAL '1 day'))
+     ORDER BY detected_at DESC
+     LIMIT 300`,
+    [resolvedUserId, lookbackDays],
+  );
+
+  for (const row of emotionHistoryResult.rows) {
+    const rowWeight = getDayWeight(row.detected_at);
+    const rawScores = row.emotion_scores || {};
+    const hasScores = rawScores && Object.keys(rawScores).length > 0;
+
+    if (hasScores) {
+      for (const [label, rawValue] of Object.entries(rawScores)) {
+        const mood = normalizeMoodLabel(label);
+        const current = scoreByMood.get(mood) || 0;
+        scoreByMood.set(mood, current + Number(rawValue || 0) * rowWeight);
+      }
+    } else if (row.dominant_emotion) {
+      const mood = normalizeMoodLabel(row.dominant_emotion);
+      const current = scoreByMood.get(mood) || 0;
+      scoreByMood.set(mood, current + 100 * rowWeight);
+    }
+  }
+
+  const viewHistoryResult = await pool.query(
+    `SELECT mood_snapshot, played_at
+     FROM user_view_history
+     WHERE user_id = $1
+       AND played_at >= (CURRENT_TIMESTAMP - ($2::int * INTERVAL '1 day'))
+     ORDER BY played_at DESC
+     LIMIT 500`,
+    [resolvedUserId, lookbackDays],
+  );
+
+  for (const row of viewHistoryResult.rows) {
+    const mood = normalizeMoodLabel(row.mood_snapshot);
+    const rowWeight = getDayWeight(row.played_at) * 35;
+    const current = scoreByMood.get(mood) || 0;
+    scoreByMood.set(mood, current + rowWeight);
+  }
+
+  const rankedMoods = Array.from(scoreByMood.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([mood, score]) => ({ mood, score: Number(score.toFixed(2)) }));
+
+  return {
+    dominantMood: rankedMoods[0]?.mood || "neutral",
+    moods: rankedMoods,
+    lookbackDays,
+  };
 }
 
 async function initializeDatabase() {
@@ -122,6 +290,24 @@ async function initializeDatabase() {
                 detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS user_view_history (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          song_id VARCHAR(100),
+          song_title TEXT,
+          song_artist TEXT,
+          search_query TEXT,
+          mood_snapshot VARCHAR(50),
+          played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+    await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_user_view_history_user_played_at
+        ON user_view_history (user_id, played_at DESC)
+      `);
 
     await pool.query(`
             ALTER TABLE emotion_history
@@ -799,6 +985,77 @@ app.get("/api/emotion-history", async (req, res) => {
   }
 });
 
+app.post("/api/view-history", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const { userId, email, songId, songTitle, songArtist, searchQuery, mood } =
+      req.body;
+    const identity = await resolveUserIdentity(userId, email);
+
+    if (!identity.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid userId or email is required",
+      });
+    }
+
+    let moodSnapshot = normalizeMoodLabel(mood);
+    if (!mood && identity.userId) {
+      const latestMoodResult = await pool.query(
+        `SELECT dominant_emotion
+         FROM emotion_history
+         WHERE user_id = $1
+         ORDER BY detected_at DESC
+         LIMIT 1`,
+        [identity.userId],
+      );
+      if (latestMoodResult.rows[0]?.dominant_emotion) {
+        moodSnapshot = normalizeMoodLabel(
+          latestMoodResult.rows[0].dominant_emotion,
+        );
+      }
+    }
+
+    const saveResult = await pool.query(
+      `INSERT INTO user_view_history (
+         user_id,
+         song_id,
+         song_title,
+         song_artist,
+         search_query,
+         mood_snapshot,
+         played_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+       RETURNING id, user_id, mood_snapshot, played_at`,
+      [
+        identity.userId,
+        songId || null,
+        songTitle || null,
+        songArtist || null,
+        searchQuery || null,
+        moodSnapshot || "neutral",
+      ],
+    );
+
+    res.json({
+      success: true,
+      entry: saveResult.rows[0],
+    });
+  } catch (error) {
+    console.error("View history save error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save view history",
+    });
+  }
+});
+
 // Fallback for 404 images
 app.get(/^\/(placeholder-audio|audio)\.(jpg|svg|png)$/, (req, res) => {
   res.sendFile(path.join(__dirname, "audio.svg"));
@@ -839,7 +1096,14 @@ MP3 FEATURE DISABLED */
 
 // MP3 search with infinite pagination & working audio URLs
 app.post("/api/search", async (req, res) => {
-  const { query, format = "mp4", pageToken = "" } = req.body;
+  const {
+    query,
+    format = "mp4",
+    pageToken = "",
+    userId,
+    email,
+    moodAware = true,
+  } = req.body;
   const perPage = 20;
   if (!query)
     return res.status(400).json({ success: false, message: "Query required" });
@@ -847,6 +1111,17 @@ app.post("/api/search", async (req, res) => {
   try {
     let results = [];
     let nextPageToken = null;
+    let moodProfile = null;
+
+    if (dbReady && moodAware) {
+      const identity = await resolveUserIdentity(userId, email);
+      if (identity.userId) {
+        moodProfile = await getMoodProfileFromHistory(
+          identity.userId,
+          EMOTION_LOOKBACK_DAYS,
+        );
+      }
+    }
 
     if (format === "mp4") {
       const ytKey = process.env.YOUTUBE_API_KEY || "demo";
@@ -895,11 +1170,16 @@ app.post("/api/search", async (req, res) => {
       nextPageToken = null;
     } */
 
+    if (moodProfile?.dominantMood) {
+      results = scoreSongsByMood(results, moodProfile.dominantMood);
+    }
+
     res.json({
       success: true,
       results,
       hasMore: Boolean(nextPageToken),
       nextPageToken,
+      moodProfile,
     });
   } catch (e) {
     res.status(500).json({ success: false, message: "Search failed" });

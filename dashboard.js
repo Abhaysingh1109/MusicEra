@@ -87,6 +87,9 @@ const shuffleFeedBtn = document.getElementById("shuffleFeedBtn");
 const recommendationTitle = document.getElementById("recommendationTitle");
 const genreChips = document.querySelectorAll(".genre-chip");
 
+let currentUser = null;
+let activeMoodFromHistory = "";
+
 let feedMode = "recommended";
 let activeGenreLabel = "For You";
 let activeGenreQuery = "";
@@ -102,6 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
+  currentUser = JSON.parse(userData);
+
   // const user = JSON.parse(userData);
   // showUserBar(user);
 
@@ -114,6 +119,41 @@ function setRecommendationHeader(titleText) {
   if (recommendationTitle) {
     recommendationTitle.textContent = titleText;
   }
+}
+
+function getUserDisplayName() {
+  const fullName = String(currentUser?.name || "").trim();
+  if (!fullName) {
+    return "User";
+  }
+  return fullName.split(" ")[0];
+}
+
+function updateHeaderWithMood(profile, isSearchMode) {
+  const userName = getUserDisplayName();
+  if (!profile?.dominantMood) {
+    activeMoodFromHistory = "";
+    if (isSearchMode) {
+      setRecommendationHeader(`${userName}, searching songs for your vibe`);
+      return;
+    }
+    setRecommendationHeader(`${userName}, checking your mood from history`);
+    return;
+  }
+
+  activeMoodFromHistory = profile.dominantMood;
+  const moodText =
+    profile.dominantMood.charAt(0).toUpperCase() +
+    profile.dominantMood.slice(1);
+
+  if (isSearchMode) {
+    setRecommendationHeader(
+      `${userName}, your mood is ${moodText} - showing matching songs`,
+    );
+    return;
+  }
+
+  setRecommendationHeader(`${userName}, your mood is ${moodText}`);
 }
 
 function setActiveGenreChip(label) {
@@ -132,6 +172,9 @@ async function requestSearch(query, pageToken = "") {
     query,
     format: currentFormat,
     pageToken,
+    userId: currentUser?.id || null,
+    email: currentUser?.email || null,
+    moodAware: true,
   };
 
   const response = await fetch(`${API_URL}/search`, {
@@ -164,6 +207,7 @@ async function fetchAndApplyResults(
     }
 
     const nextResults = Array.isArray(data.results) ? data.results : [];
+    updateHeaderWithMood(data.moodProfile, feedMode === "search");
 
     if (isLoadMore) {
       const startIndex = currentResults.length;
@@ -219,12 +263,11 @@ function loadFallbackFeed() {
 
 async function loadInitialFeed(customQuery = "", customLabel = "For You") {
   const query = customQuery || pickRandomQuery();
+  const userName = getUserDisplayName();
   feedMode = "recommended";
   activeGenreQuery = customQuery;
   activeGenreLabel = customLabel;
-  setRecommendationHeader(
-    `Recommended for you${customLabel && customLabel !== "For You" ? ` - ${customLabel}` : ""}`,
-  );
+  setRecommendationHeader(`${userName}, checking your mood from history`);
   setActiveGenreChip(customLabel);
 
   showLoading(true);
@@ -311,13 +354,14 @@ function setFormat(format) {
 
 async function handleSearch(isLoadMore = false) {
   const query = searchInput.value.trim();
+  const userName = getUserDisplayName();
   if (!query) {
     showNotification("Please enter a search term", "warning");
     return;
   }
 
   feedMode = "search";
-  setRecommendationHeader("Search results");
+  setRecommendationHeader(`${userName}, searching songs for your vibe`);
 
   if (isLoadMore) {
     showLoadMoreSpinner(true);
@@ -474,7 +518,48 @@ function playTrack(id, title, url, type) {
   // Always show overlay for all media types
   showOverlay();
 
+  const activeSong = currentResults.find(
+    (item) => item.id === id || item.videoId === id,
+  );
+  saveViewHistory({
+    songId: id,
+    songTitle: title,
+    songArtist: activeSong?.artist || activeSong?.channelTitle || "",
+    searchQuery: currentQuery || searchInput?.value?.trim() || "",
+    mood: activeMoodFromHistory,
+  });
+
   showNotification(`Now playing: ${truncateText(title, 30)}`, "success");
+}
+
+async function saveViewHistory({
+  songId,
+  songTitle,
+  songArtist,
+  searchQuery,
+  mood,
+}) {
+  if (!currentUser?.id && !currentUser?.email) {
+    return;
+  }
+
+  try {
+    await fetch(`${API_URL}/view-history`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: currentUser?.id || null,
+        email: currentUser?.email || null,
+        songId,
+        songTitle,
+        songArtist,
+        searchQuery,
+        mood,
+      }),
+    });
+  } catch (error) {
+    console.warn("Unable to save play history:", error);
+  }
 }
 
 function showOverlay() {
