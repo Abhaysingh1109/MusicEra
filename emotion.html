@@ -359,6 +359,142 @@
             display: none;
         }
 
+        .history-modal-panel {
+            width: min(1120px, 100%);
+            max-height: min(88vh, 920px);
+            overflow: auto;
+            background: rgba(16, 22, 48, 0.96);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 28px;
+            padding: 28px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+        }
+
+        .history-modal-body {
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+            gap: 24px;
+        }
+
+        .history-chart-panel,
+        .history-list-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 24px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            color: white;
+        }
+
+        .history-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 18px 0 24px;
+        }
+
+        .history-summary-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.07);
+            color: rgba(255,255,255,0.92);
+            font-size: 0.92rem;
+        }
+
+        .history-chart {
+            min-height: 320px;
+            border-radius: 20px;
+            padding: 18px;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)),
+                rgba(7, 11, 27, 0.72);
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .history-chart svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .history-chart-empty {
+            min-height: 240px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: rgba(255,255,255,0.65);
+            line-height: 1.6;
+        }
+
+        .history-legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        .history-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255,255,255,0.84);
+            font-size: 0.92rem;
+        }
+
+        .history-legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .history-entry {
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .history-entry-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .history-entry-title {
+            font-weight: 700;
+            color: white;
+        }
+
+        .history-entry-date {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.88rem;
+            white-space: nowrap;
+        }
+
+        .history-entry-meta {
+            color: rgba(255,255,255,0.74);
+            font-size: 0.92rem;
+            line-height: 1.5;
+        }
+
+        .history-entry-user {
+            color: rgba(255,255,255,0.9);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
         @keyframes slideInUp {
             to {
                 opacity: 1;
@@ -386,6 +522,10 @@
             }
 
             .emotion-modal-body {
+                grid-template-columns: 1fr;
+            }
+
+            .history-modal-body {
                 grid-template-columns: 1fr;
             }
         }
@@ -523,9 +663,43 @@
 
     <canvas id="emotionCaptureCanvas" class="emotion-hidden-canvas"></canvas>
 
+    <div class="emotion-modal" id="historyModal">
+        <div class="history-modal-panel">
+            <div class="emotion-modal-header">
+                <div>
+                    <h2>Emotion History</h2>
+                    <p>Track how happy, sad, and angry changed across your saved detections.</p>
+                </div>
+                <button class="emotion-close-btn" type="button" onclick="closeEmotionHistory()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="history-modal-body">
+                <section class="history-chart-panel">
+                    <div class="status-chip" id="historyStatus">
+                        <i class="fas fa-circle-notch fa-spin"></i>
+                        <span>Loading emotion history...</span>
+                    </div>
+
+                    <div class="history-summary" id="historySummary"></div>
+                    <div class="history-chart" id="historyChart"></div>
+                    <div class="history-legend" id="historyLegend"></div>
+                </section>
+
+                <aside class="history-list-panel">
+                    <h3>Recent Entries</h3>
+                    <p class="emotion-helper">Each saved detection is listed with its dominant emotion and timestamp.</p>
+                    <div class="history-list" id="historyList"></div>
+                </aside>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_URL = 'http://localhost:3000/api';
         const emotionModal = document.getElementById('emotionModal');
+        const historyModal = document.getElementById('historyModal');
         const emotionVideo = document.getElementById('emotionVideo');
         const emotionCanvas = document.getElementById('emotionCaptureCanvas');
         const emotionStatus = document.getElementById('emotionStatus');
@@ -533,6 +707,11 @@
         const emotionHelperEl = document.getElementById('emotionHelper');
         const emotionLinesEl = document.getElementById('emotionLines');
         const cameraGuidanceEl = document.getElementById('cameraGuidance');
+        const historyStatusEl = document.getElementById('historyStatus');
+        const historySummaryEl = document.getElementById('historySummary');
+        const historyChartEl = document.getElementById('historyChart');
+        const historyLegendEl = document.getElementById('historyLegend');
+        const historyListEl = document.getElementById('historyList');
 
         let emotionStream = null;
         let detectionTimer = null;
@@ -543,6 +722,11 @@
         let faceApiReady = false;
         let faceApiLoading = null;
         let lastFaceBox = null;
+        const historyLineConfig = [
+            { key: 'happy', label: 'Happy', color: '#22c55e' },
+            { key: 'sad', label: 'Sad', color: '#60a5fa' },
+            { key: 'angry', label: 'Angry', color: '#f97316' }
+        ];
 
         // Navbar functionality
         document.addEventListener('DOMContentLoaded', function() {
@@ -662,6 +846,9 @@
                 emotionHelperEl.textContent = `Current mood detected from your face: ${dominantEmotion}. The lines below show the confidence for each expression.`;
                 renderEmotionLines(smoothedResult.emotions);
                 setEmotionStatus('success', faceApiReady ? 'Expression detected live in browser.' : 'Expression detected successfully.');
+                saveEmotionHistory(smoothedResult).catch((saveError) => {
+                    console.warn('Emotion history save failed:', saveError);
+                });
             } catch (error) {
                 console.error('Emotion detection request failed:', error);
                 const message = error.name === 'AbortError'
@@ -752,7 +939,7 @@
             return result;
         }
 
-        function scheduleNextDetection(delay = 450) {
+        function scheduleNextDetection(delay = 2000) {
             if (!emotionStream) {
                 return;
             }
@@ -767,8 +954,29 @@
             }, delay);
         }
 
-        function goToEmotionHistory() {
-            alert('Emotion History feature coming soon!');
+        async function goToEmotionHistory() {
+            historyModal.classList.add('active');
+            historyChartEl.innerHTML = '';
+            historyLegendEl.innerHTML = '';
+            historySummaryEl.innerHTML = '';
+            historyListEl.innerHTML = '';
+            setHistoryStatus('info', 'Loading emotion history...');
+
+            try {
+                const history = await fetchEmotionHistory();
+                renderHistorySummary(history);
+                renderHistoryChart(history);
+                renderHistoryList(history);
+                setHistoryStatus('success', history.length ? 'Emotion history loaded.' : 'No saved emotion history yet.');
+            } catch (error) {
+                console.error('Emotion history load failed:', error);
+                setHistoryStatus('error', error.message || 'Failed to load emotion history.');
+                historyChartEl.innerHTML = `<div class="history-chart-empty">Unable to load your emotion history right now.</div>`;
+            }
+        }
+
+        function closeEmotionHistory() {
+            historyModal.classList.remove('active');
         }
 
         function goToDashboard() {
@@ -902,6 +1110,210 @@
                 .join('');
         }
 
+        async function saveEmotionHistory(result) {
+            if (!userData.email || !result?.dominantEmotion) {
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/emotion-history`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: userData.id,
+                    email: userData.email,
+                    dominantEmotion: result.dominantEmotion,
+                    emotions: result.emotions || [],
+                    detectedAt: new Date().toISOString()
+                })
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.message || 'Failed to save emotion history');
+            }
+        }
+
+        async function fetchEmotionHistory() {
+            const query = new URLSearchParams();
+            if (userData.id) {
+                query.set('userId', userData.id);
+            }
+            if (userData.email) {
+                query.set('email', userData.email);
+            }
+            query.set('limit', '90');
+
+            const response = await fetch(`${API_URL}/emotion-history?${query.toString()}`);
+            const payload = await response.json();
+
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.message || 'Failed to fetch emotion history');
+            }
+
+            return (payload.history || []).map((entry) => ({
+                id: entry.id,
+                dominantEmotion: String(entry.dominant_emotion || '').toLowerCase(),
+                emotionScores: entry.emotion_scores || {},
+                detectedAt: entry.detected_at
+            }));
+        }
+
+        function renderHistorySummary(history) {
+            if (!history.length) {
+                historySummaryEl.innerHTML = `
+                    <div class="history-summary-chip">
+                        <i class="fas fa-circle-info"></i>
+                        <span>Save a few detections to see your timeline.</span>
+                    </div>
+                `;
+                return;
+            }
+
+            const latestEntry = history[history.length - 1];
+            const dominantCounts = history.reduce((accumulator, entry) => {
+                accumulator[entry.dominantEmotion] = (accumulator[entry.dominantEmotion] || 0) + 1;
+                return accumulator;
+            }, {});
+            const topEmotion = Object.entries(dominantCounts).sort((a, b) => b[1] - a[1])[0];
+
+            historySummaryEl.innerHTML = `
+                <div class="history-summary-chip">
+                    <i class="fas fa-database"></i>
+                    <span>${history.length} saved detections</span>
+                </div>
+                <div class="history-summary-chip">
+                    <i class="fas fa-face-smile"></i>
+                    <span>Latest: ${formatEmotionLabel(latestEntry.dominantEmotion)}</span>
+                </div>
+                <div class="history-summary-chip">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Most frequent: ${formatEmotionLabel(topEmotion?.[0] || 'unknown')}</span>
+                </div>
+            `;
+        }
+
+        function renderHistoryChart(history) {
+            if (!history.length) {
+                historyChartEl.innerHTML = `<div class="history-chart-empty">No history yet. Run emotion detection and saved results will appear here.</div>`;
+                historyLegendEl.innerHTML = '';
+                return;
+            }
+
+            const chartWidth = 860;
+            const chartHeight = 320;
+            const padding = { top: 24, right: 18, bottom: 48, left: 46 };
+            const innerWidth = chartWidth - padding.left - padding.right;
+            const innerHeight = chartHeight - padding.top - padding.bottom;
+            const maxIndex = Math.max(history.length - 1, 1);
+            const yTicks = [0, 25, 50, 75, 100];
+
+            const xForIndex = (index) => padding.left + ((innerWidth / maxIndex) * index);
+            const yForValue = (value) => padding.top + innerHeight - ((Math.max(0, Math.min(100, value)) / 100) * innerHeight);
+
+            const gridLines = yTicks.map((tick) => `
+                <line x1="${padding.left}" y1="${yForValue(tick)}" x2="${chartWidth - padding.right}" y2="${yForValue(tick)}" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                <text x="${padding.left - 10}" y="${yForValue(tick) + 4}" fill="rgba(255,255,255,0.55)" font-size="12" text-anchor="end">${tick}</text>
+            `).join('');
+
+            const xLabels = history
+                .filter((_, index) => history.length <= 6 || index === 0 || index === history.length - 1 || index % Math.ceil(history.length / 5) === 0)
+                .map((entry, index) => {
+                    const actualIndex = history.findIndex((item) => item.id === entry.id && item.detectedAt === entry.detectedAt);
+                    return `
+                        <text x="${xForIndex(actualIndex)}" y="${chartHeight - 18}" fill="rgba(255,255,255,0.58)" font-size="12" text-anchor="middle">
+                            ${formatChartDate(entry.detectedAt)}
+                        </text>
+                    `;
+                })
+                .join('');
+
+            const seriesMarkup = historyLineConfig.map((series) => {
+                const points = history.map((entry, index) => {
+                    const value = Number(entry.emotionScores?.[series.key] || 0);
+                    return `${xForIndex(index)},${yForValue(value)}`;
+                }).join(' ');
+
+                const circles = history.map((entry, index) => {
+                    const value = Number(entry.emotionScores?.[series.key] || 0);
+                    return `
+                        <circle cx="${xForIndex(index)}" cy="${yForValue(value)}" r="3.5" fill="${series.color}">
+                            <title>${series.label}: ${value.toFixed(1)}% on ${formatDateTime(entry.detectedAt)}</title>
+                        </circle>
+                    `;
+                }).join('');
+
+                return `
+                    <polyline fill="none" stroke="${series.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${points}" />
+                    ${circles}
+                `;
+            }).join('');
+
+            historyChartEl.innerHTML = `
+                <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img" aria-label="Emotion history chart">
+                    ${gridLines}
+                    <line x1="${padding.left}" y1="${padding.top + innerHeight}" x2="${chartWidth - padding.right}" y2="${padding.top + innerHeight}" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" />
+                    <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + innerHeight}" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" />
+                    ${seriesMarkup}
+                    ${xLabels}
+                </svg>
+            `;
+
+            historyLegendEl.innerHTML = historyLineConfig.map((series) => `
+                <div class="history-legend-item">
+                    <span class="history-legend-swatch" style="background: ${series.color}"></span>
+                    <span>${series.label}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderHistoryList(history) {
+            if (!history.length) {
+                historyListEl.innerHTML = `
+                    <div class="history-entry">
+                        <div class="history-entry-meta">No entries saved yet. Use emotion detection and your results will appear here.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            historyListEl.innerHTML = history
+                .slice()
+                .reverse()
+                .slice(0, 12)
+                .map((entry) => {
+                    const score = Number(entry.emotionScores?.[entry.dominantEmotion] || 0);
+                    const userName = userData.name || 'User';
+                    return `
+                        <div class="history-entry">
+                            <div class="history-entry-user">${userName}</div>
+                            <div class="history-entry-header">
+                                <div class="history-entry-title">${formatEmotionLabel(entry.dominantEmotion)}</div>
+                                <div class="history-entry-date">${formatDateTime(entry.detectedAt)}</div>
+                            </div>
+                            <div class="history-entry-meta">
+                                ${userName} was feeling ${formatEmotionLabel(entry.dominantEmotion)} with ${score.toFixed(1)}% confidence.
+                            </div>
+                        </div>
+                    `;
+                })
+                .join('');
+        }
+
+        function setHistoryStatus(type, message) {
+            const icon = type === 'error'
+                ? 'fa-triangle-exclamation'
+                : type === 'success'
+                    ? 'fa-circle-check'
+                    : 'fa-circle-notch fa-spin';
+
+            historyStatusEl.innerHTML = `
+                <i class="fas ${icon}"></i>
+                <span>${message}</span>
+            `;
+        }
+
         function setEmotionStatus(type, message) {
             const icon = type === 'error'
                 ? 'fa-triangle-exclamation'
@@ -919,6 +1331,26 @@
             return String(label || '')
                 .replace(/_/g, ' ')
                 .replace(/\b\w/g, (char) => char.toUpperCase());
+        }
+
+        function formatChartDate(value) {
+            const date = new Date(value);
+            return Number.isNaN(date.getTime())
+                ? '--'
+                : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+
+        function formatDateTime(value) {
+            const date = new Date(value);
+            return Number.isNaN(date.getTime())
+                ? 'Unknown date'
+                : date.toLocaleString([], {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
         }
 
         window.addEventListener('beforeunload', closeEmotionDetection);

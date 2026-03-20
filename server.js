@@ -62,6 +62,25 @@ let emotionWorkerReady = null;
 let emotionWorkerRequestId = 0;
 const pendingEmotionRequests = new Map();
 
+function normalizeEmotionScores(emotions = []) {
+  if (!Array.isArray(emotions)) {
+    return {};
+  }
+
+  return emotions.reduce((accumulator, emotion) => {
+    const label = String(emotion?.label || "").trim().toLowerCase();
+    if (!label) {
+      return accumulator;
+    }
+
+    accumulator[label] = Math.max(
+      0,
+      Math.min(100, Number(emotion?.score || 0)),
+    );
+    return accumulator;
+  }, {});
+}
+
 async function initializeDatabase() {
   console.log("🔄 Initializing database...");
   try {
@@ -90,6 +109,81 @@ async function initializeDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+    await pool.query(`
+            CREATE TABLE IF NOT EXISTS emotion_history (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                dominant_emotion VARCHAR(50) NOT NULL,
+                emotion_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
+                detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+    await pool.query(`
+            ALTER TABLE emotion_history
+            ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+        `);
+
+    await pool.query(`
+            ALTER TABLE emotion_history
+            ADD COLUMN IF NOT EXISTS dominant_emotion VARCHAR(50)
+        `);
+
+    await pool.query(`
+            ALTER TABLE emotion_history
+            ADD COLUMN IF NOT EXISTS emotion_scores JSONB NOT NULL DEFAULT '{}'::jsonb
+        `);
+
+    await pool.query(`
+            ALTER TABLE emotion_history
+            ADD COLUMN IF NOT EXISTS detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        `);
+
+    const emotionHistoryColumnsResult = await pool.query(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_name = 'emotion_history'`,
+    );
+    const emotionHistoryColumns = new Set(
+      emotionHistoryColumnsResult.rows.map((row) => row.column_name),
+    );
+
+    if (emotionHistoryColumns.has("emotion")) {
+      await pool.query(`
+              UPDATE emotion_history
+              SET dominant_emotion = LOWER(TRIM(emotion))
+              WHERE dominant_emotion IS NULL
+          `);
+    }
+
+    if (emotionHistoryColumns.has("emotion") && emotionHistoryColumns.has("confidence")) {
+      await pool.query(`
+              UPDATE emotion_history
+              SET emotion_scores = jsonb_build_object(
+                  COALESCE(dominant_emotion, LOWER(TRIM(emotion)), 'unknown'),
+                  COALESCE(confidence::numeric, 0)::float
+              )
+              WHERE emotion_scores = '{}'::jsonb
+          `);
+    }
+
+    if (emotionHistoryColumns.has("created_at")) {
+      await pool.query(`
+              UPDATE emotion_history
+              SET detected_at = COALESCE(created_at, detected_at, CURRENT_TIMESTAMP)
+          `);
+    }
+
+    if (emotionHistoryColumns.has("user_email")) {
+      await pool.query(`
+              UPDATE emotion_history eh
+              SET user_id = users.id
+              FROM users
+              WHERE eh.user_id IS NULL
+                AND eh.user_email = users.email
+          `);
+    }
 
     dbReady = true;
     console.log("🎉 DB ready - full mode");
@@ -546,6 +640,156 @@ app.post("/api/emotion-detect", async (req, res) => {
     });
   } finally {
     await fs.unlink(tempImagePath).catch(() => {});
+  }
+});
+
+app.post("/api/emotion-history", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const { userId, email, dominantEmotion, emotions, detectedAt } = req.body;
+    const normalizedDominantEmotion = String(dominantEmotion || "")
+      .trim()
+      .toLowerCase();
+    const normalizedScores = normalizeEmotionScores(emotions);
+
+    if (!normalizedDominantEmotion) {
+      return res.status(400).json({
+        success: false,
+        message: "dominantEmotion is required",
+      });
+    }
+
+    let resolvedUserId = Number(userId) || null;
+    let resolvedEmail = String(email || "").trim() || null;
+    if (!resolvedUserId && email) {
+      const userLookup = await pool.query(
+        "SELECT id FROM users WHERE email = $1 LIMIT 1",
+        [email],
+      );
+      resolvedUserId = userLookup.rows[0]?.id || null;
+    }
+
+    if (!resolvedEmail && resolvedUserId) {
+      const userLookup = await pool.query(
+        "SELECT email FROM users WHERE id = $1 LIMIT 1",
+        [resolvedUserId],
+      );
+      resolvedEmail = userLookup.rows[0]?.email || null;
+    }
+
+    if (!resolvedUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid userId or email is required",
+      });
+    }
+
+    const dominantConfidence = Number(
+      normalizedScores[normalizedDominantEmotion] || 0,
+    );
+
+    const result = await pool.query(
+      `INSERT INTO emotion_history (
+         user_email,
+         emotion,
+         confidence,
+         user_id,
+         dominant_emotion,
+         emotion_scores,
+         detected_at
+       )
+       VALUES (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6::jsonb,
+         COALESCE($7::timestamp, CURRENT_TIMESTAMP)
+       )
+       RETURNING id, user_id, dominant_emotion, emotion_scores, detected_at`,
+      [
+        resolvedEmail,
+        normalizedDominantEmotion,
+        dominantConfidence,
+        resolvedUserId,
+        normalizedDominantEmotion,
+        JSON.stringify(normalizedScores),
+        detectedAt || null,
+      ],
+    );
+
+    res.json({
+      success: true,
+      entry: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Emotion history save error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save emotion history",
+    });
+  }
+});
+
+app.get("/api/emotion-history", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const requestedUserId = Number(req.query.userId) || null;
+    const requestedEmail = String(req.query.email || "").trim();
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 60));
+
+    let resolvedUserId = requestedUserId;
+    if (!resolvedUserId && requestedEmail) {
+      const userLookup = await pool.query(
+        "SELECT id FROM users WHERE email = $1 LIMIT 1",
+        [requestedEmail],
+      );
+      resolvedUserId = userLookup.rows[0]?.id || null;
+    }
+
+    if (!resolvedUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid userId or email is required",
+      });
+    }
+
+    const historyResult = await pool.query(
+      `SELECT id, user_id, dominant_emotion, emotion_scores, detected_at
+       FROM (
+         SELECT id, user_id, dominant_emotion, emotion_scores, detected_at
+         FROM emotion_history
+         WHERE user_id = $1
+         ORDER BY detected_at DESC
+         LIMIT $2
+       ) recent_history
+       ORDER BY detected_at ASC`,
+      [resolvedUserId, limit],
+    );
+
+    res.json({
+      success: true,
+      history: historyResult.rows,
+    });
+  } catch (error) {
+    console.error("Emotion history fetch error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch emotion history",
+    });
   }
 });
 
