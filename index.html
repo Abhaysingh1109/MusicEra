@@ -174,6 +174,36 @@
                     </div>
                 </div>
             </div>
+
+            <div class="otp-modal" id="otpModal">
+                <div class="otp-modal-content">
+                    <button class="modal-close otp-close" type="button" onclick="closeOtpModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+
+                    <div class="otp-icon">
+                        <i class="fas fa-envelope-open-text"></i>
+                    </div>
+                    <h3>Verify Your Email</h3>
+                    <p class="otp-description">Enter the 6-digit code sent to <strong id="otpEmailDisplay">your email</strong>.</p>
+
+                    <form id="otpForm" class="otp-form">
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-key"></i> OTP Code
+                            </label>
+                            <input type="text" id="otpCode" placeholder="Enter 6-digit OTP" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+                        </div>
+
+                        <p class="otp-status" id="otpStatus">We sent a verification code to your inbox.</p>
+
+                        <div class="otp-actions">
+                            <button type="button" class="btn-secondary" id="resendOtpBtn">Resend OTP</button>
+                            <button type="submit" class="btn-submit" id="verifyOtpBtn">Verify OTP</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
             
             <div class="form-footer">
                 <p id="footerText">Welcome back! Please login to continue.</p>
@@ -236,4 +266,3 @@
     </div>
 </body>
 </html>
-

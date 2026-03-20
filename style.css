@@ -870,6 +870,124 @@ body::before {
     cursor: not-allowed;
 }
 
+/* OTP Modal */
+.otp-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    justify-content: center;
+    align-items: center;
+    z-index: 2400;
+    padding: 20px;
+}
+
+.otp-modal.active {
+    display: flex;
+}
+
+.otp-modal-content {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    background: var(--dark-secondary);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 2.25rem;
+    animation: modalSlide 0.3s ease;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+}
+
+.otp-close {
+    background: var(--glass-bg);
+}
+
+.otp-icon {
+    width: 74px;
+    height: 74px;
+    border-radius: 22px;
+    margin: 0 auto 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: white;
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    box-shadow: 0 12px 35px rgba(99, 102, 241, 0.25);
+}
+
+.otp-modal-content h3 {
+    font-size: 1.55rem;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.otp-description {
+    text-align: center;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.otp-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#otpCode {
+    text-align: center;
+    letter-spacing: 0.35em;
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+
+.otp-status {
+    min-height: 22px;
+    font-size: 0.92rem;
+    color: var(--muted);
+    text-align: center;
+}
+
+.otp-status.success {
+    color: var(--success);
+}
+
+.otp-status.error {
+    color: var(--error);
+}
+
+.otp-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.btn-secondary {
+    width: 100%;
+    padding: 18px;
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    color: var(--light);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: var(--font-body);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary-light);
+}
+
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Face Modal */
 .modal-overlay {
     position: fixed;
@@ -1811,5 +1929,16 @@ body::before {
         width: 150px;
         height: 150px;
     }
-}
 
+    .otp-modal-content {
+        padding: 1.5rem;
+    }
+
+    .otp-actions {
+        grid-template-columns: 1fr;
+    }
+
+    #otpCode {
+        letter-spacing: 0.24em;
+    }
+}

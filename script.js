@@ -6,6 +6,13 @@ const API_URL = "http://localhost:3000/api";
 // DOM Elements
 const faceModal = document.getElementById("faceModal");
 const faceSetupModal = document.getElementById("faceSetupModal");
+const otpModal = document.getElementById("otpModal");
+const otpForm = document.getElementById("otpForm");
+const otpCodeInput = document.getElementById("otpCode");
+const otpStatus = document.getElementById("otpStatus");
+const otpEmailDisplay = document.getElementById("otpEmailDisplay");
+const resendOtpBtn = document.getElementById("resendOtpBtn");
+const verifyOtpBtn = document.getElementById("verifyOtpBtn");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const video = document.getElementById("video");
 const faceStatus = document.getElementById("faceStatus");
@@ -18,6 +25,8 @@ let stream = null;
 let currentMode = ""; // 'signup-setup', 'login'
 let currentUserEmail = null;
 let currentFaceDescriptor = null;
+let pendingSignupPayload = null;
+let pendingMaskedEmail = "";
 
 // Initialize when page loads
 document.addEventListener("DOMContentLoaded", () => {
@@ -41,6 +50,146 @@ async function initApp() {
   const submitBtn = document.getElementById("loginSubmitBtn");
   if (manualFields) manualFields.style.display = "none";
   if (submitBtn) submitBtn.style.display = "none";
+}
+
+function maskEmail(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const [localPart, domain] = normalizedEmail.split("@");
+
+  if (!localPart || !domain) {
+    return normalizedEmail;
+  }
+
+  if (localPart.length <= 2) {
+    return `${localPart[0] || "*"}*@${domain}`;
+  }
+
+  return `${localPart[0]}${"*".repeat(localPart.length - 2)}${localPart[localPart.length - 1]}@${domain}`;
+}
+
+function setOtpStatus(type, message) {
+  if (!otpStatus) return;
+
+  otpStatus.className = `otp-status ${type || "info"}`;
+  otpStatus.textContent = message;
+}
+
+function openOtpModal() {
+  if (!otpModal) return;
+
+  if (otpEmailDisplay) {
+    otpEmailDisplay.textContent =
+      pendingMaskedEmail || maskEmail(pendingSignupPayload?.email || "");
+  }
+
+  if (otpForm) otpForm.reset();
+  setOtpStatus(
+    "info",
+    `We sent a verification code to ${pendingMaskedEmail || "your email address"}.`,
+  );
+  otpModal.classList.add("active");
+
+  setTimeout(() => {
+    otpCodeInput?.focus();
+  }, 50);
+}
+
+function closeOtpModal(clearPending = false) {
+  if (otpModal) otpModal.classList.remove("active");
+  if (otpForm) otpForm.reset();
+
+  if (clearPending) {
+    pendingSignupPayload = null;
+    pendingMaskedEmail = "";
+  }
+}
+
+async function requestSignupOtp(signupPayload, isResend = false) {
+  const signupSubmitBtn = document.querySelector("#signupForm .btn-submit");
+
+  if (!signupPayload) {
+    alert("Signup details are missing. Please fill the form again.");
+    return false;
+  }
+
+  pendingSignupPayload = { ...signupPayload };
+  pendingMaskedEmail = maskEmail(pendingSignupPayload.email);
+
+  if (!otpModal?.classList.contains("active")) {
+    openOtpModal();
+  }
+
+  setOtpStatus(
+    "info",
+    isResend
+      ? `Sending a new OTP to ${pendingMaskedEmail}...`
+      : `Sending OTP to ${pendingMaskedEmail}...`,
+  );
+
+  if (signupSubmitBtn) signupSubmitBtn.disabled = true;
+  if (resendOtpBtn) resendOtpBtn.disabled = true;
+  if (verifyOtpBtn) verifyOtpBtn.disabled = true;
+
+  try {
+    const response = await fetch(`${API_URL}/register/request-otp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(signupPayload),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      const message = data.message || "Failed to send OTP";
+      if (otpModal?.classList.contains("active")) {
+        setOtpStatus("error", message);
+      } else {
+        alert(message);
+      }
+      return false;
+    }
+
+    pendingMaskedEmail =
+      data.maskedEmail || maskEmail(pendingSignupPayload.email);
+
+    openOtpModal();
+    setOtpStatus(
+      "success",
+      isResend
+        ? `A new OTP was sent to ${pendingMaskedEmail}.`
+        : `OTP sent to ${pendingMaskedEmail}.`,
+    );
+
+    if (data.devOtp) {
+      setOtpStatus(
+        "success",
+        `Development OTP: ${data.devOtp}. SMTP is not configured yet.`,
+      );
+      if (otpCodeInput) {
+        otpCodeInput.value = String(data.devOtp);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error("OTP request error:", error);
+    const message =
+      "Connection error. Make sure the server is running on port 3000.";
+
+    if (otpModal?.classList.contains("active")) {
+      setOtpStatus("error", message);
+    } else {
+      alert(message);
+    }
+
+    return false;
+  } finally {
+    if (signupSubmitBtn) signupSubmitBtn.disabled = false;
+    if (resendOtpBtn) resendOtpBtn.disabled = false;
+    if (verifyOtpBtn) verifyOtpBtn.disabled = false;
+  }
 }
 
 // Load Face API
@@ -625,37 +774,79 @@ document.getElementById("signupForm")?.addEventListener("submit", async (e) => {
     return;
   }
 
+  await requestSignupOtp({
+    name,
+    email,
+    password,
+  });
+});
+
+otpForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  if (!pendingSignupPayload?.email) {
+    setOtpStatus("error", "Signup details expired. Fill the signup form again.");
+    return;
+  }
+
+  const otp = String(otpCodeInput?.value || "")
+    .replace(/\s+/g, "")
+    .trim();
+
+  if (!/^\d{6}$/.test(otp)) {
+    setOtpStatus("error", "Enter a valid 6-digit OTP.");
+    return;
+  }
+
+  if (verifyOtpBtn) verifyOtpBtn.disabled = true;
+
   try {
-    const response = await fetch(`${API_URL}/register`, {
+    const response = await fetch(`${API_URL}/register/verify-otp`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        name,
-        email,
-        password,
-        faceDescriptor: null, // Not required during signup
+        email: pendingSignupPayload.email,
+        otp,
       }),
     });
 
     const data = await response.json();
 
-    if (data.success) {
-      currentUserEmail = email;
-
-      // Show face setup modal
-      faceSetupModal.classList.add("active");
-
-      // Reset form
-      document.getElementById("signupForm").reset();
-    } else {
-      alert(data.message);
+    if (!data.success) {
+      setOtpStatus("error", data.message || "OTP verification failed.");
+      return;
     }
+
+    currentUserEmail = pendingSignupPayload.email;
+    setOtpStatus("success", "Email verified. Account created successfully.");
+    closeOtpModal(true);
+
+    faceSetupModal.classList.add("active");
+    document.getElementById("signupForm")?.reset();
   } catch (error) {
-    console.error("Signup error:", error);
-    alert("Connection error. Make sure the server is running on port 3000.");
+    console.error("OTP verification error:", error);
+    setOtpStatus(
+      "error",
+      "Connection error. Make sure the server is running on port 3000.",
+    );
+  } finally {
+    if (verifyOtpBtn) verifyOtpBtn.disabled = false;
   }
+});
+
+resendOtpBtn?.addEventListener("click", async () => {
+  if (!pendingSignupPayload) {
+    setOtpStatus("error", "Signup details expired. Fill the signup form again.");
+    return;
+  }
+
+  await requestSignupOtp(pendingSignupPayload, true);
+});
+
+otpCodeInput?.addEventListener("input", () => {
+  otpCodeInput.value = otpCodeInput.value.replace(/\D/g, "").slice(0, 6);
 });
 
 // Close modal on overlay click
@@ -671,9 +862,16 @@ faceSetupModal?.addEventListener("click", (e) => {
   }
 });
 
+otpModal?.addEventListener("click", (e) => {
+  if (e.target === otpModal) {
+    closeOtpModal();
+  }
+});
+
 // Close modal on escape key
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeFaceModal();
+    closeOtpModal();
   }
 });
