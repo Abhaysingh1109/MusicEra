@@ -4,6 +4,10 @@ const { Pool } = require("pg");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const path = require("path");
+const fs = require("fs/promises");
+const os = require("os");
+const crypto = require("crypto");
+const { spawn } = require("child_process");
 const dotenv = require("dotenv");
 const axios = require("axios");
 
@@ -11,10 +15,33 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+const PYTHON_BIN =
+  process.env.PYTHON_BIN || "/Library/Developer/CommandLineTools/usr/bin/python3";
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static(path.join(__dirname)));
+
+function getPythonSpawnEnv() {
+  const pythonVersion = process.env.PYTHON_VERSION || "3.9";
+  const userSitePackages = path.join(
+    os.homedir(),
+    "Library",
+    "Python",
+    pythonVersion,
+    "lib",
+    "python",
+    "site-packages",
+  );
+
+  return {
+    ...process.env,
+    PYTHONNOUSERSITE: "",
+    PYTHONPATH: process.env.PYTHONPATH
+      ? `${userSitePackages}:${process.env.PYTHONPATH}`
+      : userSitePackages,
+  };
+}
 
 const pool = new Pool({
   host: process.env.PGHOST || "localhost",
@@ -333,6 +360,108 @@ app.post("/api/save-face", async (req, res) => {
       success: false,
       message: "Error saving face data",
     });
+  }
+});
+
+function runPythonEmotionDetection(imagePath) {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.join(__dirname, "backend", "emotion_detection.py");
+    const pythonProcess = spawn(PYTHON_BIN, [scriptPath, imagePath], {
+      cwd: __dirname,
+      env: getPythonSpawnEnv(),
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    pythonProcess.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    pythonProcess.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    pythonProcess.on("error", (error) => {
+      reject(error);
+    });
+
+    pythonProcess.on("close", (code) => {
+      let parsedStdout = null;
+
+      if (stdout.trim()) {
+        try {
+          parsedStdout = JSON.parse(stdout);
+        } catch (error) {
+          parsedStdout = null;
+        }
+      }
+
+      if (code !== 0) {
+        reject(
+          new Error(
+            parsedStdout?.error ||
+              stderr.trim() ||
+              `Python process exited with code ${code} using ${PYTHON_BIN}`,
+          ),
+        );
+        return;
+      }
+
+      try {
+        resolve(parsedStdout || JSON.parse(stdout));
+      } catch (error) {
+        reject(
+          new Error(`Invalid JSON returned from emotion detector: ${stdout}`),
+        );
+      }
+    });
+  });
+}
+
+app.post("/api/emotion-detect", async (req, res) => {
+  const { image } = req.body;
+
+  if (!image || typeof image !== "string") {
+    return res.status(400).json({
+      success: false,
+      message: "A base64 encoded image is required",
+    });
+  }
+
+  const matches = image.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+  if (!matches) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid image payload",
+    });
+  }
+
+  const extension = matches[1] === "jpeg" ? "jpg" : matches[1];
+  const imageBuffer = Buffer.from(matches[2], "base64");
+  const tempImagePath = path.join(
+    os.tmpdir(),
+    `musicera-emotion-${crypto.randomUUID()}.${extension}`,
+  );
+
+  try {
+    await fs.writeFile(tempImagePath, imageBuffer);
+    const result = await runPythonEmotionDetection(tempImagePath);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error("Emotion detection error:", error.message);
+    res.status(500).json({
+      success: false,
+      message:
+        "Emotion detection failed. Install Python dependencies from requirements.txt and try again.",
+      error: error.message,
+    });
+  } finally {
+    await fs.unlink(tempImagePath).catch(() => {});
   }
 });
 
