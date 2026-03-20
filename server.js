@@ -4,6 +4,7 @@ const { Pool } = require("pg");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const path = require("path");
+const readline = require("readline");
 const fs = require("fs/promises");
 const os = require("os");
 const crypto = require("crypto");
@@ -17,6 +18,10 @@ const app = express();
 const PORT = 3000;
 const PYTHON_BIN =
   process.env.PYTHON_BIN || "/Library/Developer/CommandLineTools/usr/bin/python3";
+const EMOTION_REQUEST_TIMEOUT_MS = parseInt(
+  process.env.EMOTION_REQUEST_TIMEOUT_MS || "6000",
+  10,
+);
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
@@ -52,6 +57,10 @@ const pool = new Pool({
 });
 
 let dbReady = false;
+let emotionWorkerProcess = null;
+let emotionWorkerReady = null;
+let emotionWorkerRequestId = 0;
+const pendingEmotionRequests = new Map();
 
 async function initializeDatabase() {
   console.log("🔄 Initializing database...");
@@ -363,59 +372,134 @@ app.post("/api/save-face", async (req, res) => {
   }
 });
 
-function runPythonEmotionDetection(imagePath) {
-  return new Promise((resolve, reject) => {
+function rejectPendingEmotionRequests(error) {
+  for (const { reject, timeout } of pendingEmotionRequests.values()) {
+    clearTimeout(timeout);
+    reject(error);
+  }
+  pendingEmotionRequests.clear();
+}
+
+function ensureEmotionWorker() {
+  if (emotionWorkerReady) {
+    return emotionWorkerReady;
+  }
+
+  emotionWorkerReady = new Promise((resolve, reject) => {
     const scriptPath = path.join(__dirname, "backend", "emotion_detection.py");
-    const pythonProcess = spawn(PYTHON_BIN, [scriptPath, imagePath], {
+    const worker = spawn(PYTHON_BIN, [scriptPath, "--worker"], {
       cwd: __dirname,
       env: getPythonSpawnEnv(),
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
-    let stdout = "";
-    let stderr = "";
+    emotionWorkerProcess = worker;
+    let settled = false;
+    let stderrBuffer = "";
 
-    pythonProcess.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
+    const stdoutReader = readline.createInterface({
+      input: worker.stdout,
+      crlfDelay: Infinity,
     });
 
-    pythonProcess.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
+    settled = true;
+    resolve();
 
-    pythonProcess.on("error", (error) => {
-      reject(error);
-    });
-
-    pythonProcess.on("close", (code) => {
-      let parsedStdout = null;
-
-      if (stdout.trim()) {
-        try {
-          parsedStdout = JSON.parse(stdout);
-        } catch (error) {
-          parsedStdout = null;
-        }
+    const settleReject = (error) => {
+      if (!settled) {
+        settled = true;
+        emotionWorkerReady = null;
+        reject(error);
       }
+    };
 
-      if (code !== 0) {
-        reject(
-          new Error(
-            parsedStdout?.error ||
-              stderr.trim() ||
-              `Python process exited with code ${code} using ${PYTHON_BIN}`,
-          ),
-        );
+    stdoutReader.on("line", (line) => {
+      let payload = null;
+
+      try {
+        payload = JSON.parse(line);
+      } catch (error) {
         return;
       }
 
-      try {
-        resolve(parsedStdout || JSON.parse(stdout));
-      } catch (error) {
-        reject(
-          new Error(`Invalid JSON returned from emotion detector: ${stdout}`),
-        );
+      if (!payload || !payload.id) {
+        return;
       }
+
+      const request = pendingEmotionRequests.get(payload.id);
+      if (!request) {
+        return;
+      }
+
+      clearTimeout(request.timeout);
+      pendingEmotionRequests.delete(payload.id);
+
+      if (payload.error) {
+        request.reject(new Error(payload.error));
+        return;
+      }
+
+      delete payload.id;
+      request.resolve(payload);
     });
+
+    worker.stderr.on("data", (chunk) => {
+      stderrBuffer += chunk.toString();
+    });
+
+    worker.on("error", (error) => {
+      emotionWorkerProcess = null;
+      rejectPendingEmotionRequests(error);
+      settleReject(error);
+    });
+
+    worker.on("close", (code) => {
+      const error = new Error(
+        stderrBuffer.trim() ||
+          `Emotion detection worker stopped with code ${code}`,
+      );
+      emotionWorkerProcess = null;
+      emotionWorkerReady = null;
+      rejectPendingEmotionRequests(error);
+      settleReject(error);
+    });
+  });
+
+  return emotionWorkerReady;
+}
+
+async function runPythonEmotionDetection(imagePath) {
+  await ensureEmotionWorker();
+
+  return new Promise((resolve, reject) => {
+    if (!emotionWorkerProcess || !emotionWorkerProcess.stdin.writable) {
+      reject(new Error("Emotion detection worker is not available"));
+      return;
+    }
+
+    const id = `emotion-${++emotionWorkerRequestId}`;
+    const timeout = setTimeout(() => {
+      pendingEmotionRequests.delete(id);
+      reject(
+        new Error(
+          `Emotion detection timed out after ${EMOTION_REQUEST_TIMEOUT_MS}ms`,
+        ),
+      );
+    }, EMOTION_REQUEST_TIMEOUT_MS);
+
+    pendingEmotionRequests.set(id, { resolve, reject, timeout });
+    emotionWorkerProcess.stdin.write(
+      `${JSON.stringify({ id, imagePath })}\n`,
+      (error) => {
+        if (!error) {
+          return;
+        }
+
+        clearTimeout(timeout);
+        pendingEmotionRequests.delete(id);
+        reject(error);
+      },
+    );
   });
 }
 
@@ -565,6 +649,12 @@ app.post("/api/search", async (req, res) => {
 async function startServer() {
   console.log("🚀 Starting MusicEra server...");
   await initializeDatabase();
+  try {
+    console.log("🧠 Warming emotion detection worker...");
+    await ensureEmotionWorker();
+  } catch (error) {
+    console.error("⚠️ Emotion worker warmup failed:", error.message);
+  }
   console.log("🌐 Starting HTTP server...");
   app.listen(PORT, () => {
     const status = dbReady ? "FULL (DB OK)" : "LITE (no DB)";
