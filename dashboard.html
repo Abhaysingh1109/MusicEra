@@ -269,6 +269,10 @@
                 type="text"
                 id="musicSearchInput"
                 placeholder="Search for songs, artists, albums... (e.g. 'Shape of You')"
+                autocomplete="off"
+                aria-label="Search songs"
+                aria-haspopup="listbox"
+                aria-expanded="false"
               />
               <button id="searchBtn" class="search-btn">
                 <i class="fas fa-play"></i>
@@ -277,6 +281,12 @@
                 <i class="fas fa-times"></i>
               </button>
             </div>
+            <div
+              id="searchSuggestions"
+              class="search-suggestions"
+              role="listbox"
+              aria-label="Search suggestions"
+            ></div>
             <div
               id="loadingSpinner"
               class="loading-spinner"

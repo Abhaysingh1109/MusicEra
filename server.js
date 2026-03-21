@@ -124,6 +124,17 @@ const MOOD_KEYWORDS = {
   neutral: ["chill", "lofi", "focus", "instrumental", "ambient", "calm"],
 };
 
+const DEFAULT_SUGGESTION_SEEDS = [
+  "latest hindi songs",
+  "top english songs",
+  "bollywood hits",
+  "arijit singh songs",
+  "lofi chill beats",
+  "romantic songs",
+  "trending punjabi songs",
+  "party songs mix",
+];
+
 const FACE_MATCH_THRESHOLD = Number(process.env.FACE_MATCH_THRESHOLD || "0.24");
 const FACE_MATCH_FALLBACK_THRESHOLD = Number(
   process.env.FACE_MATCH_FALLBACK_THRESHOLD || "0.33",
@@ -581,6 +592,16 @@ async function initializeDatabase() {
     await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_user_view_history_user_played_at
         ON user_view_history (user_id, played_at DESC)
+      `);
+
+    await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_user_view_history_search_query
+        ON user_view_history (search_query)
+      `);
+
+    await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_user_view_history_song_title
+        ON user_view_history (song_title)
       `);
 
     await pool.query(`
@@ -1879,6 +1900,155 @@ app.post("/api/view-history", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to save view history",
+    });
+  }
+});
+
+app.get("/api/search-suggestions", async (req, res) => {
+  const query = String(req.query.q || "").trim();
+  const normalizedQuery = query.toLowerCase();
+  const requestedUserId = Number(req.query.userId) || null;
+  const requestedEmail = normalizeEmail(req.query.email);
+  const limit = Math.min(15, Math.max(1, Number(req.query.limit) || 8));
+
+  const suggestions = [];
+  const seen = new Set();
+
+  const tryAddSuggestion = (label) => {
+    const candidate = String(label || "").trim();
+    if (!candidate) {
+      return;
+    }
+
+    const normalizedCandidate = candidate.toLowerCase();
+    if (normalizedQuery && !normalizedCandidate.includes(normalizedQuery)) {
+      return;
+    }
+
+    if (normalizedCandidate.length < 2 || seen.has(normalizedCandidate)) {
+      return;
+    }
+
+    seen.add(normalizedCandidate);
+    suggestions.push(candidate);
+  };
+
+  try {
+    if (!dbReady) {
+      DEFAULT_SUGGESTION_SEEDS.forEach(tryAddSuggestion);
+      return res.json({
+        success: true,
+        suggestions: suggestions.slice(0, limit),
+        source: "fallback",
+      });
+    }
+
+    const identity = await resolveUserIdentity(requestedUserId, requestedEmail);
+
+    if (identity.userId) {
+      const userSearches = await pool.query(
+        `SELECT MIN(TRIM(search_query)) AS label,
+                MAX(played_at) AS last_seen,
+                COUNT(*) AS hits
+         FROM user_view_history
+         WHERE user_id = $1
+           AND search_query IS NOT NULL
+           AND LENGTH(TRIM(search_query)) >= 2
+         GROUP BY LOWER(TRIM(search_query))
+         ORDER BY hits DESC, last_seen DESC
+         LIMIT 20`,
+        [identity.userId],
+      );
+
+      for (const row of userSearches.rows) {
+        tryAddSuggestion(row.label);
+      }
+
+      const userSongs = await pool.query(
+        `SELECT MIN(TRIM(song_title)) AS label,
+                MAX(played_at) AS last_seen,
+                COUNT(*) AS hits
+         FROM user_view_history
+         WHERE user_id = $1
+           AND song_title IS NOT NULL
+           AND LENGTH(TRIM(song_title)) >= 2
+         GROUP BY LOWER(TRIM(song_title))
+         ORDER BY hits DESC, last_seen DESC
+         LIMIT 20`,
+        [identity.userId],
+      );
+
+      for (const row of userSongs.rows) {
+        tryAddSuggestion(row.label);
+      }
+    }
+
+    const trendingQueries = await pool.query(
+      `SELECT MIN(TRIM(search_query)) AS label,
+              MAX(played_at) AS last_seen,
+              COUNT(*) AS hits
+       FROM user_view_history
+       WHERE search_query IS NOT NULL
+         AND LENGTH(TRIM(search_query)) >= 2
+         AND played_at >= (CURRENT_TIMESTAMP - INTERVAL '45 days')
+       GROUP BY LOWER(TRIM(search_query))
+       ORDER BY hits DESC, last_seen DESC
+       LIMIT 40`,
+      [],
+    );
+
+    for (const row of trendingQueries.rows) {
+      tryAddSuggestion(row.label);
+    }
+
+    const trendingSongs = await pool.query(
+      `SELECT MIN(TRIM(song_title)) AS label,
+              MAX(played_at) AS last_seen,
+              COUNT(*) AS hits
+       FROM user_view_history
+       WHERE song_title IS NOT NULL
+         AND LENGTH(TRIM(song_title)) >= 2
+         AND played_at >= (CURRENT_TIMESTAMP - INTERVAL '45 days')
+       GROUP BY LOWER(TRIM(song_title))
+       ORDER BY hits DESC, last_seen DESC
+       LIMIT 40`,
+      [],
+    );
+
+    for (const row of trendingSongs.rows) {
+      tryAddSuggestion(row.label);
+    }
+
+    DEFAULT_SUGGESTION_SEEDS.forEach(tryAddSuggestion);
+
+    res.json({
+      success: true,
+      suggestions: suggestions.slice(0, limit),
+      source: identity.userId ? "personalized" : "trending",
+    });
+  } catch (error) {
+    console.error("Search suggestions error:", error);
+
+    const fallback = [];
+    const fallbackSeen = new Set();
+    for (const item of DEFAULT_SUGGESTION_SEEDS) {
+      const normalized = item.toLowerCase();
+      if (normalizedQuery && !normalized.includes(normalizedQuery)) {
+        continue;
+      }
+      if (!fallbackSeen.has(normalized)) {
+        fallbackSeen.add(normalized);
+        fallback.push(item);
+      }
+      if (fallback.length >= limit) {
+        break;
+      }
+    }
+
+    res.json({
+      success: true,
+      suggestions: fallback,
+      source: "fallback",
     });
   }
 });
