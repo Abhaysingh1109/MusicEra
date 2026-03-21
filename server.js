@@ -24,6 +24,10 @@ const EMOTION_REQUEST_TIMEOUT_MS = parseInt(
   process.env.EMOTION_REQUEST_TIMEOUT_MS || "6000",
   10,
 );
+const FACE_AUTH_REQUEST_TIMEOUT_MS = parseInt(
+  process.env.FACE_AUTH_REQUEST_TIMEOUT_MS || "12000",
+  10,
+);
 const OTP_EXPIRY_MINUTES = Math.max(
   1,
   parseInt(process.env.OTP_EXPIRY_MINUTES || "10", 10),
@@ -82,6 +86,10 @@ let emotionWorkerProcess = null;
 let emotionWorkerReady = null;
 let emotionWorkerRequestId = 0;
 const pendingEmotionRequests = new Map();
+let faceAuthWorkerProcess = null;
+let faceAuthWorkerReady = null;
+let faceAuthWorkerRequestId = 0;
+const pendingFaceAuthRequests = new Map();
 let mailTransporterPromise = null;
 
 const EMOTION_LOOKBACK_DAYS = Math.max(
@@ -114,6 +122,13 @@ const MOOD_KEYWORDS = {
   surprise: ["new", "trending", "viral", "remix", "latest", "fresh"],
   neutral: ["chill", "lofi", "focus", "instrumental", "ambient", "calm"],
 };
+
+const FACE_MATCH_THRESHOLD = Number(
+  process.env.FACE_MATCH_THRESHOLD || "0.24",
+);
+const FACE_MATCH_MIN_MARGIN = Number(
+  process.env.FACE_MATCH_MIN_MARGIN || "0.015",
+);
 
 function normalizeEmotionScores(emotions = []) {
   if (!Array.isArray(emotions)) {
@@ -148,6 +163,110 @@ function normalizeEmail(value) {
   return String(value || "")
     .trim()
     .toLowerCase();
+}
+
+function parseFaceEmbedding(value) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return null;
+    }
+
+    const numeric = parsed.map((entry) => Number(entry));
+    return numeric.every((entry) => Number.isFinite(entry)) ? numeric : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function cosineDistance(vectorA = [], vectorB = []) {
+  if (
+    !Array.isArray(vectorA) ||
+    !Array.isArray(vectorB) ||
+    vectorA.length === 0 ||
+    vectorA.length !== vectorB.length
+  ) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let index = 0; index < vectorA.length; index += 1) {
+    const a = Number(vectorA[index]);
+    const b = Number(vectorB[index]);
+
+    if (!Number.isFinite(a) || !Number.isFinite(b)) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    dotProduct += a * b;
+    normA += a * a;
+    normB += b * b;
+  }
+
+  if (normA <= 0 || normB <= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return 1 - dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function parseBase64Image(image) {
+  if (!image || typeof image !== "string") {
+    throw new Error("A base64 encoded image is required");
+  }
+
+  const matches = image.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+  if (!matches) {
+    throw new Error("Invalid image payload");
+  }
+
+  const extension = matches[1] === "jpeg" ? "jpg" : matches[1];
+  return {
+    extension,
+    buffer: Buffer.from(matches[2], "base64"),
+  };
+}
+
+function normalizeIncomingImages(payload) {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const candidateImages = [];
+
+  if (Array.isArray(payload.images)) {
+    candidateImages.push(...payload.images);
+  }
+
+  if (typeof payload.image === "string") {
+    candidateImages.push(payload.image);
+  }
+
+  if (typeof payload.faceImage === "string") {
+    candidateImages.push(payload.faceImage);
+  }
+
+  return candidateImages.filter(
+    (image) => typeof image === "string" && image.trim().length > 0,
+  );
+}
+
+async function writeTempImage(image, prefix) {
+  const { extension, buffer } = parseBase64Image(image);
+  const imagePath = path.join(
+    os.tmpdir(),
+    `${prefix}-${crypto.randomUUID()}.${extension}`,
+  );
+
+  await fs.writeFile(imagePath, buffer);
+  return imagePath;
 }
 
 function generateOtpCode() {
@@ -887,6 +1006,136 @@ app.post("/api/register/verify-otp", async (req, res) => {
   }
 });
 
+function rejectPendingFaceAuthRequests(error) {
+  for (const { reject, timeout } of pendingFaceAuthRequests.values()) {
+    clearTimeout(timeout);
+    reject(error);
+  }
+  pendingFaceAuthRequests.clear();
+}
+
+function ensureFaceAuthWorker() {
+  if (faceAuthWorkerReady) {
+    return faceAuthWorkerReady;
+  }
+
+  faceAuthWorkerReady = new Promise((resolve, reject) => {
+    const scriptPath = path.join(__dirname, "backend", "face_auth.py");
+    const worker = spawn(PYTHON_BIN, [scriptPath, "--worker"], {
+      cwd: __dirname,
+      env: getPythonSpawnEnv(),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    faceAuthWorkerProcess = worker;
+    let settled = false;
+    let stderrBuffer = "";
+
+    const stdoutReader = readline.createInterface({
+      input: worker.stdout,
+      crlfDelay: Infinity,
+    });
+
+    settled = true;
+    resolve();
+
+    const settleReject = (error) => {
+      if (!settled) {
+        settled = true;
+        faceAuthWorkerReady = null;
+        reject(error);
+      }
+    };
+
+    stdoutReader.on("line", (line) => {
+      let payload = null;
+
+      try {
+        payload = JSON.parse(line);
+      } catch (error) {
+        return;
+      }
+
+      if (!payload || !payload.id) {
+        return;
+      }
+
+      const request = pendingFaceAuthRequests.get(payload.id);
+      if (!request) {
+        return;
+      }
+
+      clearTimeout(request.timeout);
+      pendingFaceAuthRequests.delete(payload.id);
+
+      if (payload.error) {
+        request.reject(new Error(payload.error));
+        return;
+      }
+
+      delete payload.id;
+      request.resolve(payload);
+    });
+
+    worker.stderr.on("data", (chunk) => {
+      stderrBuffer += chunk.toString();
+    });
+
+    worker.on("error", (error) => {
+      faceAuthWorkerProcess = null;
+      rejectPendingFaceAuthRequests(error);
+      settleReject(error);
+    });
+
+    worker.on("close", (code) => {
+      const error = new Error(
+        stderrBuffer.trim() || `Face auth worker stopped with code ${code}`,
+      );
+      faceAuthWorkerProcess = null;
+      faceAuthWorkerReady = null;
+      rejectPendingFaceAuthRequests(error);
+      settleReject(error);
+    });
+  });
+
+  return faceAuthWorkerReady;
+}
+
+async function runPythonFaceEmbedding(imagePaths = []) {
+  await ensureFaceAuthWorker();
+
+  return new Promise((resolve, reject) => {
+    if (!faceAuthWorkerProcess || !faceAuthWorkerProcess.stdin.writable) {
+      reject(new Error("Face auth worker is not available"));
+      return;
+    }
+
+    const id = `face-auth-${++faceAuthWorkerRequestId}`;
+    const timeout = setTimeout(() => {
+      pendingFaceAuthRequests.delete(id);
+      reject(
+        new Error(
+          `Face auth timed out after ${FACE_AUTH_REQUEST_TIMEOUT_MS}ms`,
+        ),
+      );
+    }, FACE_AUTH_REQUEST_TIMEOUT_MS);
+
+    pendingFaceAuthRequests.set(id, { resolve, reject, timeout });
+    faceAuthWorkerProcess.stdin.write(
+      `${JSON.stringify({ id, imagePaths })}\n`,
+      (error) => {
+        if (!error) {
+          return;
+        }
+
+        clearTimeout(timeout);
+        pendingFaceAuthRequests.delete(id);
+        reject(error);
+      },
+    );
+  });
+}
+
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -953,17 +1202,39 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/face-login", async (req, res) => {
-  try {
-    const { faceDescriptor } = req.body;
+  const tempImagePaths = [];
 
-    if (!faceDescriptor) {
-      return res.status(400).json({
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
         success: false,
-        message: "Face descriptor is required",
+        message: "Database is not available",
       });
     }
 
-    // Get all users with face data
+    const images = normalizeIncomingImages(req.body);
+
+    if (!images.length) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one face image is required",
+      });
+    }
+
+    for (const image of images.slice(0, 4)) {
+      tempImagePaths.push(await writeTempImage(image, "musicera-face-login"));
+    }
+
+    const scanResult = await runPythonFaceEmbedding(tempImagePaths);
+    const probeEmbedding = parseFaceEmbedding(scanResult.embedding);
+
+    if (!probeEmbedding) {
+      return res.status(422).json({
+        success: false,
+        message: "Unable to build a secure face signature from this scan.",
+      });
+    }
+
     const result = await pool.query(
       "SELECT id, name, email, face_descriptor FROM users WHERE face_descriptor IS NOT NULL AND face_descriptor != 'null' AND length(face_descriptor) > 10",
     );
@@ -975,91 +1246,112 @@ app.post("/api/face-login", async (req, res) => {
       });
     }
 
-    // Convert input descriptor to array
-    let inputDescriptor;
-    if (typeof faceDescriptor === "string") {
-      inputDescriptor = JSON.parse(faceDescriptor);
-    } else {
-      inputDescriptor = faceDescriptor;
-    }
-
-    // Find matching face (simple Euclidean distance comparison)
-    let matchedUser = null;
-    let lowestDistance = Infinity;
-
-    for (const user of result.rows) {
-      if (user.face_descriptor) {
-        let storedDescriptor;
-        if (typeof user.face_descriptor === "string") {
-          storedDescriptor = JSON.parse(user.face_descriptor);
-        } else {
-          storedDescriptor = user.face_descriptor;
+    const rankedMatches = result.rows
+      .map((user) => {
+        const enrolledEmbedding = parseFaceEmbedding(user.face_descriptor);
+        if (!enrolledEmbedding) {
+          return null;
         }
 
-        // Calculate Euclidean distance
-        let distance = 0;
-        for (let i = 0; i < inputDescriptor.length; i++) {
-          distance += Math.pow(inputDescriptor[i] - storedDescriptor[i], 2);
-        }
-        distance = Math.sqrt(distance);
+        return {
+          user,
+          distance: cosineDistance(probeEmbedding, enrolledEmbedding),
+        };
+      })
+      .filter((entry) => entry && Number.isFinite(entry.distance))
+      .sort((left, right) => left.distance - right.distance);
 
-        console.log(`Face match distance for ${user.email}: ${distance}`);
+    const bestMatch = rankedMatches[0] || null;
+    const secondMatch = rankedMatches[1] || null;
 
-        // Threshold for face match - lowered to 0.6 for better matching
-        if (distance < 0.6 && distance < lowestDistance) {
-          lowestDistance = distance;
-          matchedUser = user;
-        }
-      }
-    }
-
-    if (!matchedUser) {
+    if (!bestMatch || bestMatch.distance > FACE_MATCH_THRESHOLD) {
       return res.status(401).json({
         success: false,
         message:
-          "Face not recognized. Please try again or login with email/password. Distance: " +
-          lowestDistance,
+          "Face not recognized with enough confidence. Try again in better light or use email/password.",
+      });
+    }
+
+    if (
+      secondMatch &&
+      secondMatch.distance - bestMatch.distance < FACE_MATCH_MIN_MARGIN
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Face scan is too close to another enrolled profile. Use email/password and scan again.",
       });
     }
 
     console.log(
-      `Face login successful: ${matchedUser.email} (distance: ${lowestDistance})`,
+      `Face login successful: ${bestMatch.user.email} (distance: ${bestMatch.distance.toFixed(4)})`,
     );
 
     res.json({
       success: true,
       message: "Face login successful",
       user: {
-        id: matchedUser.id,
-        name: matchedUser.name,
-        email: matchedUser.email,
+        id: bestMatch.user.id,
+        name: bestMatch.user.name,
+        email: bestMatch.user.email,
         hasFace: true,
+      },
+      scan: {
+        qualityScore: scanResult.qualityScore,
+        samplesUsed: scanResult.samplesUsed,
       },
     });
   } catch (error) {
     console.error("Face login error:", error);
     res.status(500).json({
       success: false,
-      message: "Error with face login",
+      message: error.message || "Error with face login",
     });
+  } finally {
+    await Promise.all(
+      tempImagePaths.map((imagePath) => fs.unlink(imagePath).catch(() => {})),
+    );
   }
 });
 
 app.post("/api/save-face", async (req, res) => {
-  try {
-    const { email, faceDescriptor } = req.body;
+  const tempImagePaths = [];
 
-    if (!email || !faceDescriptor) {
-      return res.status(400).json({
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
         success: false,
-        message: "Email and face descriptor are required",
+        message: "Database is not available",
       });
     }
 
-    // Update user's face descriptor
+    const email = normalizeEmail(req.body?.email);
+    const images = normalizeIncomingImages(req.body);
+
+    if (!email || !images.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and face images are required",
+      });
+    }
+
+    for (const image of images.slice(0, 4)) {
+      tempImagePaths.push(await writeTempImage(image, "musicera-face-enroll"));
+    }
+
+    const enrollmentResult = await runPythonFaceEmbedding(tempImagePaths);
+    const embedding = parseFaceEmbedding(enrollmentResult.embedding);
+
+    if (!embedding) {
+      return res.status(422).json({
+        success: false,
+        message: "The scanner could not capture a reliable face profile.",
+      });
+    }
+
     const result = await pool.query(
       "UPDATE users SET face_descriptor = $1 WHERE email = $2 RETURNING id, name, email",
-      [JSON.stringify(faceDescriptor), email],
+      [JSON.stringify(embedding), email],
     );
 
     if (result.rows.length === 0) {
@@ -1080,13 +1372,21 @@ app.post("/api/save-face", async (req, res) => {
         email: result.rows[0].email,
         hasFace: true,
       },
+      faceProfile: {
+        qualityScore: enrollmentResult.qualityScore,
+        samplesUsed: enrollmentResult.samplesUsed,
+      },
     });
   } catch (error) {
     console.error("Save face error:", error);
     res.status(500).json({
       success: false,
-      message: "Error saving face data",
+      message: error.message || "Error saving face data",
     });
+  } finally {
+    await Promise.all(
+      tempImagePaths.map((imagePath) => fs.unlink(imagePath).catch(() => {})),
+    );
   }
 });
 
@@ -1223,31 +1523,10 @@ async function runPythonEmotionDetection(imagePath) {
 
 app.post("/api/emotion-detect", async (req, res) => {
   const { image } = req.body;
-
-  if (!image || typeof image !== "string") {
-    return res.status(400).json({
-      success: false,
-      message: "A base64 encoded image is required",
-    });
-  }
-
-  const matches = image.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
-  if (!matches) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid image payload",
-    });
-  }
-
-  const extension = matches[1] === "jpeg" ? "jpg" : matches[1];
-  const imageBuffer = Buffer.from(matches[2], "base64");
-  const tempImagePath = path.join(
-    os.tmpdir(),
-    `musicera-emotion-${crypto.randomUUID()}.${extension}`,
-  );
+  let tempImagePath = null;
 
   try {
-    await fs.writeFile(tempImagePath, imageBuffer);
+    tempImagePath = await writeTempImage(image, "musicera-emotion");
     const result = await runPythonEmotionDetection(tempImagePath);
 
     res.json({
@@ -1255,15 +1534,25 @@ app.post("/api/emotion-detect", async (req, res) => {
       ...result,
     });
   } catch (error) {
+    const statusCode =
+      error.message === "A base64 encoded image is required" ||
+      error.message === "Invalid image payload"
+        ? 400
+        : 500;
+
     console.error("Emotion detection error:", error.message);
-    res.status(500).json({
+    res.status(statusCode).json({
       success: false,
       message:
-        "Emotion detection failed. Install Python dependencies from requirements.txt and try again.",
-      error: error.message,
+        statusCode === 400
+          ? error.message
+          : "Emotion detection failed. Install Python dependencies from requirements.txt and try again.",
+      error: statusCode === 400 ? undefined : error.message,
     });
   } finally {
-    await fs.unlink(tempImagePath).catch(() => {});
+    if (tempImagePath) {
+      await fs.unlink(tempImagePath).catch(() => {});
+    }
   }
 });
 
@@ -1626,6 +1915,12 @@ async function startServer() {
     await ensureEmotionWorker();
   } catch (error) {
     console.error("⚠️ Emotion worker warmup failed:", error.message);
+  }
+  try {
+    console.log("🛡️ Warming face auth worker...");
+    await ensureFaceAuthWorker();
+  } catch (error) {
+    console.error("⚠️ Face auth worker warmup failed:", error.message);
   }
   console.log("🌐 Starting HTTP server...");
   app.listen(PORT, () => {

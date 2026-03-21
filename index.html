@@ -239,9 +239,19 @@
                 
                 <div class="camera-container">
                     <video id="video" autoplay playsinline></video>
+                    <canvas id="faceCanvas" class="face-canvas"></canvas>
                     <div class="face-overlay">
-                        <div class="face-frame"></div>
+                        <div class="face-frame">
+                            <div class="face-frame-core"></div>
+                        </div>
+                        <div class="scan-corners">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
                     </div>
+                    <div class="scan-grid"></div>
                     <div class="scan-line"></div>
                 </div>
                 

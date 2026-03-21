@@ -170,6 +170,223 @@
     transform: translateY(-1px);
 }
 
+.navbar-face-setup {
+    width: 100%;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    color: var(--light);
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: var(--transition);
+    font-family: var(--font-body);
+    margin-bottom: 0.75rem;
+}
+
+.navbar-face-setup:hover {
+    background: rgba(99, 102, 241, 0.22);
+    transform: translateY(-1px);
+}
+
+.face-auth-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 8, 20, 0.82);
+    backdrop-filter: blur(12px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 2000;
+}
+
+.face-auth-modal.active {
+    display: flex;
+}
+
+.face-auth-panel {
+    width: min(520px, 100%);
+    background: rgba(16, 22, 48, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+
+.face-auth-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.face-auth-header h3 {
+    margin: 0 0 6px;
+    color: white;
+    font-family: var(--font-heading);
+}
+
+.face-auth-header p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.95rem;
+}
+
+.face-auth-close {
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: white;
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 1rem;
+}
+
+.face-auth-camera {
+    border-radius: 18px;
+    overflow: hidden;
+    background: #060816;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.face-auth-camera video {
+    width: 100%;
+    min-height: 320px;
+    display: block;
+    object-fit: cover;
+    background: #060816;
+}
+
+.face-auth-status {
+    margin: 16px 0 0;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.95rem;
+}
+
+.face-auth-status.success {
+    background: rgba(34, 197, 94, 0.18);
+    color: #bbf7d0;
+}
+
+.face-auth-status.error {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fecaca;
+}
+
+.face-auth-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 18px;
+    flex-wrap: wrap;
+}
+
+.face-auth-btn {
+    border: none;
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.face-auth-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.face-auth-btn.secondary {
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+}
+
+.face-auth-btn.primary {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: white;
+}
+
+.face-auth-success-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.82);
+    backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2100;
+    padding: 20px;
+}
+
+.face-auth-success-modal.active {
+    display: flex;
+}
+
+.face-auth-success-card {
+    width: min(420px, 100%);
+    background:
+        radial-gradient(circle at top, rgba(16, 185, 129, 0.14), transparent 38%),
+        linear-gradient(180deg, rgba(19, 19, 42, 0.98), rgba(8, 15, 24, 0.98));
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 24px;
+    padding: 32px 26px;
+    text-align: center;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.42);
+    animation: modalSlide 0.25s ease;
+}
+
+.face-auth-success-icon {
+    width: 78px;
+    height: 78px;
+    border-radius: 22px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: white;
+    background: linear-gradient(135deg, #10b981, #0f766e);
+    box-shadow: 0 18px 40px rgba(16, 185, 129, 0.28);
+}
+
+.face-auth-success-card h3 {
+    margin: 0 0 10px;
+    color: white;
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+}
+
+.face-auth-success-card p {
+    margin: 0 0 22px;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.face-auth-success-btn {
+    border: none;
+    border-radius: 12px;
+    padding: 12px 22px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    cursor: pointer;
+    color: white;
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    transition: var(--transition);
+}
+
+.face-auth-success-btn:hover {
+    transform: translateY(-1px);
+}
+
 /* Content offset for fixed navbar */
 body.has-navbar {
     padding-top: 80px;
