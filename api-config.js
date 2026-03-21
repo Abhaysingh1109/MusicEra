@@ -25,28 +25,57 @@
     return normalized;
   };
 
+  const isInvalidApiBase = (base) => {
+    if (!base) {
+      return false;
+    }
+
+    try {
+      const url = new URL(base);
+      if (!/^https?:$/.test(url.protocol)) {
+        return true;
+      }
+
+      // On GitHub Pages, backend must not be another github.io static site.
+      if (isGithubPages && url.hostname.includes("github.io")) {
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      return true;
+    }
+  };
+
   if (queryApiBase) {
     const normalized = normalizeBase(queryApiBase);
-    if (normalized) {
+    if (normalized && !isInvalidApiBase(normalized)) {
       localStorage.setItem("MUSICERA_API_BASE", normalized);
       window.MUSICERA_API_BASE = normalized;
       return;
     }
+
+    console.warn("Ignored invalid apiBase query parameter:", queryApiBase);
   }
 
   const storedBase = normalizeBase(localStorage.getItem("MUSICERA_API_BASE"));
   const defaultBase = normalizeBase(DEFAULT_DEPLOYED_API_BASE);
 
+  const inMemoryBase = normalizeBase(window.MUSICERA_API_BASE);
   const preferredBase =
-    normalizeBase(window.MUSICERA_API_BASE) ||
-    storedBase ||
-    (!isLocalHost && defaultBase ? defaultBase : "");
+    [inMemoryBase, storedBase, !isLocalHost ? defaultBase : ""].filter(
+      (candidate) => candidate && !isInvalidApiBase(candidate),
+    )[0] || "";
 
   const resolvedBase =
     preferredBase || (isLocalHost ? "http://localhost:3000" : "");
 
   if (resolvedBase) {
     window.MUSICERA_API_BASE = resolvedBase;
+    window.MUSICERA_API_DEBUG = {
+      base: resolvedBase,
+      source: preferredBase ? "configured" : "localhost-fallback",
+    };
   }
 
   if (isGithubPages && !storedBase && !defaultBase) {

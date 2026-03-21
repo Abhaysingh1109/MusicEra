@@ -711,7 +711,8 @@ async function submitFaceFrames(frames) {
   updateFaceStatus("success", pendingMessage);
 
   try {
-    const response = await fetch(`${API_URL}/${endpoint}`, {
+    const requestUrl = `${API_URL}/${endpoint}`;
+    const response = await fetch(requestUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -727,7 +728,7 @@ async function submitFaceFrames(frames) {
       if (!response.ok) {
         updateFaceStatus(
           "error",
-          `Server error ${response.status}. Check API base settings.`,
+          `Server error ${response.status} at ${requestUrl}`,
         );
         captureInProgress = false;
         stableDetectionCount = 0;
@@ -737,7 +738,10 @@ async function submitFaceFrames(frames) {
     }
 
     if (!response.ok || !data.success) {
-      updateFaceStatus("error", data.message || "Face verification failed.");
+      updateFaceStatus(
+        "error",
+        data.message || `Face verification failed at ${requestUrl}.`,
+      );
       captureInProgress = false;
       stableDetectionCount = 0;
       return;
