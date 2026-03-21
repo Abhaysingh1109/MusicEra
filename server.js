@@ -16,7 +16,7 @@ const nodemailer = require("nodemailer");
 dotenv.config();
 
 const app = express();
-const PORT = parseInt(process.env.PORT || "3000", 10);
+const PORT = parseInt(process.env.PORT || "3001", 10);
 const HOST = process.env.HOST || "0.0.0.0";
 const PYTHON_BIN =
   process.env.PYTHON_BIN ||
@@ -783,6 +783,47 @@ app.post("/api/register", async (req, res) => {
     message:
       "Direct registration is disabled. Request an OTP with /api/register/request-otp and complete verification with /api/register/verify-otp.",
   });
+});
+
+app.post("/api/register/check-email", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const email = normalizeEmail(req.body?.email);
+
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({
+        success: false,
+        available: false,
+        message: "Enter a valid email address",
+      });
+    }
+
+    const existingUser = await pool.query(
+      "SELECT id FROM users WHERE email = $1 LIMIT 1",
+      [email],
+    );
+
+    const available = existingUser.rows.length === 0;
+
+    return res.json({
+      success: true,
+      available,
+      message: available ? "Email is available" : "Email already registered",
+    });
+  } catch (error) {
+    console.error("Check email availability error:", error);
+    return res.status(500).json({
+      success: false,
+      available: false,
+      message: "Failed to validate email",
+    });
+  }
 });
 
 app.post("/api/register/request-otp", async (req, res) => {
