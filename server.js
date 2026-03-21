@@ -78,7 +78,7 @@ const pool = new Pool({
   port: parseInt(process.env.PGPORT || "5432"),
   database: process.env.PGDATABASE || "musicera",
   user: process.env.PGUSER || "postgres",
-  password: process.env.PGPASSWORD || "11092002",
+  password: process.env.PGPASSWORD || "",
 });
 
 let dbReady = false;
@@ -124,6 +124,9 @@ const MOOD_KEYWORDS = {
 };
 
 const FACE_MATCH_THRESHOLD = Number(process.env.FACE_MATCH_THRESHOLD || "0.24");
+const FACE_MATCH_FALLBACK_THRESHOLD = Number(
+  process.env.FACE_MATCH_FALLBACK_THRESHOLD || "0.33",
+);
 const FACE_MATCH_MIN_MARGIN = Number(
   process.env.FACE_MATCH_MIN_MARGIN || "0.015",
 );
@@ -155,6 +158,21 @@ function normalizeMoodLabel(value) {
     .toLowerCase();
 
   return normalized || "neutral";
+}
+
+const VALID_MOODS = new Set([
+  "happy",
+  "sad",
+  "angry",
+  "fear",
+  "disgust",
+  "surprise",
+  "neutral",
+]);
+
+function normalizeValidMood(value) {
+  const normalized = normalizeMoodLabel(value);
+  return VALID_MOODS.has(normalized) ? normalized : "";
 }
 
 function normalizeEmail(value) {
@@ -704,6 +722,45 @@ async function initializeDatabase() {
               WHERE eh.user_id IS NULL
                 AND eh.user_email = users.email
           `);
+    }
+
+    // Create user_preferences table for music era and language preferences
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        preferred_eras TEXT[] DEFAULT '{}'::text[],
+        preferred_languages TEXT[] DEFAULT '{}'::text[],
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create emotion mood mapping table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mood_song_mapping (
+        id SERIAL PRIMARY KEY,
+        mood VARCHAR(50) NOT NULL,
+        song_keywords TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Insert default mood-song mappings if table is empty
+    const moodMappingCount = await pool.query(
+      "SELECT COUNT(*) FROM mood_song_mapping",
+    );
+    if (moodMappingCount.rows[0]?.count === "0") {
+      await pool.query(`
+        INSERT INTO mood_song_mapping (mood, song_keywords) VALUES
+        ('happy', 'upbeat,dance,party,fun,energetic,feel good,celebrating'),
+        ('sad', 'emotional,heartbreak,lonely,melancholy,slow,acoustic,sentimental'),
+        ('angry', 'rock,metal,rap,hard,intense,powerful,angry,aggressive'),
+        ('fear', 'calm,relax,meditation,healing,soft,ambient,peaceful'),
+        ('disgust', 'clean,detox,fresh,reset,focus,chill,motivation'),
+        ('surprise', 'trending,viral,remix,latest,fresh,new,hit,chart,popular'),
+        ('neutral', 'chill,lofi,focus,instrumental,ambient,calm,lo-fi,study')
+      `);
     }
 
     dbReady = true;
@@ -1259,7 +1316,22 @@ app.post("/api/face-login", async (req, res) => {
     const bestMatch = rankedMatches[0] || null;
     const secondMatch = rankedMatches[1] || null;
 
-    if (!bestMatch || bestMatch.distance > FACE_MATCH_THRESHOLD) {
+    if (!bestMatch) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "No valid face profile found for verification. Please re-enroll Face ID from your account settings.",
+      });
+    }
+
+    const hasClearSeparation =
+      !secondMatch ||
+      secondMatch.distance - bestMatch.distance >= FACE_MATCH_MIN_MARGIN;
+    const passesStrictThreshold = bestMatch.distance <= FACE_MATCH_THRESHOLD;
+    const passesFallbackThreshold =
+      bestMatch.distance <= FACE_MATCH_FALLBACK_THRESHOLD && hasClearSeparation;
+
+    if (!passesStrictThreshold && !passesFallbackThreshold) {
       return res.status(401).json({
         success: false,
         message:
@@ -1267,10 +1339,7 @@ app.post("/api/face-login", async (req, res) => {
       });
     }
 
-    if (
-      secondMatch &&
-      secondMatch.distance - bestMatch.distance < FACE_MATCH_MIN_MARGIN
-    ) {
+    if (!hasClearSeparation) {
       return res.status(401).json({
         success: false,
         message:
@@ -1819,6 +1888,7 @@ app.post("/api/search", async (req, res) => {
     userId,
     email,
     moodAware = true,
+    preferredMood,
   } = req.body;
   const perPage = 20;
   if (!query)
@@ -1829,7 +1899,16 @@ app.post("/api/search", async (req, res) => {
     let nextPageToken = null;
     let moodProfile = null;
 
-    if (dbReady && moodAware) {
+    const normalizedPreferredMood = normalizeMoodLabel(preferredMood);
+
+    if (normalizedPreferredMood && normalizedPreferredMood !== "neutral") {
+      moodProfile = {
+        dominantMood: normalizedPreferredMood,
+        moods: [{ mood: normalizedPreferredMood, score: 100 }],
+        lookbackDays: 0,
+        source: "forced",
+      };
+    } else if (dbReady && moodAware) {
       const identity = await resolveUserIdentity(userId, email);
       if (identity.userId) {
         moodProfile = await getMoodProfileFromHistory(
@@ -1902,30 +1981,293 @@ app.post("/api/search", async (req, res) => {
   }
 });
 
-async function withTimeout(promise, timeoutMs, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
-        timeoutMs,
-      ),
-    ),
-  ]);
-}
+// Calculate average emotion from last 4-5 scans
+app.post("/api/emotion/average", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const { userId, email, recentScans = [] } = req.body;
+    const identity = await resolveUserIdentity(userId, email);
+
+    if (!identity.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid userId or email is required",
+      });
+    }
+
+    let sourceScans = [];
+
+    if (Array.isArray(recentScans) && recentScans.length > 0) {
+      sourceScans = recentScans
+        .map((entry) => normalizeValidMood(entry))
+        .filter((entry) => Boolean(entry));
+    }
+
+    // Fallback to DB only when explicit session scans are not provided.
+    if (sourceScans.length === 0) {
+      const recentEmotions = await pool.query(
+        `SELECT dominant_emotion
+         FROM emotion_history
+         WHERE user_id = $1
+         ORDER BY detected_at DESC
+         LIMIT 5`,
+        [identity.userId],
+      );
+
+      sourceScans = recentEmotions.rows
+        .map((row) => normalizeValidMood(row.dominant_emotion))
+        .filter((entry) => Boolean(entry));
+    }
+
+    if (sourceScans.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No emotion history found. Please detect emotions first.",
+      });
+    }
+
+    // Count emotions and choose the mode; break ties by most recent scan.
+    const emotionCounts = {};
+    sourceScans.forEach((emotion) => {
+      emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+    });
+
+    const maxCount = Math.max(...Object.values(emotionCounts));
+    const topMoods = Object.entries(emotionCounts)
+      .filter(([, count]) => count === maxCount)
+      .map(([mood]) => mood);
+
+    const latestScan = sourceScans[sourceScans.length - 1] || "neutral";
+    const averageEmotion = topMoods.includes(latestScan)
+      ? latestScan
+      : topMoods[0] || latestScan;
+
+    // Get user preferences
+    const prefResult = await pool.query(
+      `SELECT preferred_eras, preferred_languages FROM user_preferences WHERE user_id = $1`,
+      [identity.userId],
+    );
+
+    const userPrefs = prefResult.rows[0] || {
+      preferred_eras: [],
+      preferred_languages: [],
+    };
+
+    res.json({
+      success: true,
+      averageEmotion,
+      recentEmotions: sourceScans.length,
+      emotionBreakdown: emotionCounts,
+      userPreferences: {
+        eras: userPrefs.preferred_eras || [],
+        languages: userPrefs.preferred_languages || [],
+      },
+    });
+  } catch (error) {
+    console.error("Emotion average calculation error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to calculate emotion average",
+    });
+  }
+});
+
+// Save user music preferences (era and language)
+app.post("/api/user-preferences", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const { userId, email, eras = [], languages = [] } = req.body;
+    const identity = await resolveUserIdentity(userId, email);
+
+    if (!identity.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid userId or email is required",
+      });
+    }
+
+    // Validate and sanitize inputs
+    const validEras = Array.isArray(eras) ? eras.filter((e) => e) : [];
+    const validLanguages = Array.isArray(languages)
+      ? languages.filter((l) => l)
+      : [];
+
+    // Upsert user preferences
+    const result = await pool.query(
+      `INSERT INTO user_preferences (user_id, preferred_eras, preferred_languages, updated_at)
+       VALUES ($1, $2::text[], $3::text[], CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+         preferred_eras = $2::text[],
+         preferred_languages = $3::text[],
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [
+        identity.userId,
+        JSON.stringify(validEras),
+        JSON.stringify(validLanguages),
+      ],
+    );
+
+    res.json({
+      success: true,
+      preferences: result.rows[0],
+    });
+  } catch (error) {
+    console.error("User preferences save error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save user preferences",
+    });
+  }
+});
+
+// Get user music preferences
+app.get("/api/user-preferences", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const { userId, email } = req.query;
+    const identity = await resolveUserIdentity(userId, email);
+
+    if (!identity.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid userId or email is required",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT preferred_eras, preferred_languages FROM user_preferences WHERE user_id = $1`,
+      [identity.userId],
+    );
+
+    const preferences = result.rows[0] || {
+      preferred_eras: [],
+      preferred_languages: [],
+    };
+
+    res.json({
+      success: true,
+      preferences: {
+        eras: preferences.preferred_eras || [],
+        languages: preferences.preferred_languages || [],
+      },
+    });
+  } catch (error) {
+    console.error("User preferences fetch error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch user preferences",
+    });
+  }
+});
+
+// Get mood-based song recommendations
+app.post("/api/recommendations", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const { userId, email, mood } = req.body;
+    const identity = await resolveUserIdentity(userId, email);
+
+    if (!identity.userId || !mood) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid userId/email and mood are required",
+      });
+    }
+
+    // Get user preferences
+    const prefResult = await pool.query(
+      `SELECT preferred_eras, preferred_languages FROM user_preferences WHERE user_id = $1`,
+      [identity.userId],
+    );
+
+    const userPrefs = prefResult.rows[0] || {
+      preferred_eras: [],
+      preferred_languages: [],
+    };
+
+    // Get search keywords for the mood
+    const moodResult = await pool.query(
+      `SELECT song_keywords FROM mood_song_mapping WHERE LOWER(mood) = LOWER($1) LIMIT 1`,
+      [mood],
+    );
+
+    let searchKeywords = mood; // Default fallback
+    if (moodResult.rows[0]) {
+      const keywords = moodResult.rows[0].song_keywords.split(",");
+      searchKeywords = keywords[Math.floor(Math.random() * keywords.length)];
+    }
+
+    // Build search query with user preferences
+    let searchQuery = searchKeywords;
+    if (
+      userPrefs.preferred_languages &&
+      userPrefs.preferred_languages.length > 0
+    ) {
+      searchQuery += ` ${userPrefs.preferred_languages[0]}`;
+    }
+    if (userPrefs.preferred_eras && userPrefs.preferred_eras.length > 0) {
+      searchQuery += ` ${userPrefs.preferred_eras[0]}`;
+    }
+
+    res.json({
+      success: true,
+      recommendation: {
+        mood,
+        searchQuery: searchQuery.trim(),
+        keywords: searchKeywords,
+        userPreferences: {
+          eras: userPrefs.preferred_eras || [],
+          languages: userPrefs.preferred_languages || [],
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Recommendations fetch error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch recommendations",
+    });
+  }
+});
 
 async function startServer() {
   console.log("🚀 Starting MusicEra server...");
   await initializeDatabase();
   try {
     console.log("🧠 Warming emotion detection worker...");
-    await withTimeout(ensureEmotionWorker(), 30000, "Emotion worker warmup");
+    await ensureEmotionWorker();
   } catch (error) {
     console.error("⚠️ Emotion worker warmup failed:", error.message);
   }
   try {
     console.log("🛡️ Warming face auth worker...");
-    await withTimeout(ensureFaceAuthWorker(), 60000, "Face auth worker warmup");
+    await ensureFaceAuthWorker();
   } catch (error) {
     console.error("⚠️ Face auth worker warmup failed:", error.message);
   }
