@@ -1,14 +1,30 @@
 // MusicEra - Login & Signup with Face Recognition
 // Connected to PostgreSQL Backend API
 
-const API_BASE =
+const API_BASE = String(
   window.MUSICERA_API_BASE ||
-  localStorage.getItem("MUSICERA_API_BASE") ||
-  (window.location.hostname === "localhost" ||
-  window.location.hostname === "127.0.0.1"
-    ? "http://localhost:3000"
-    : `${window.location.origin}`);
+    localStorage.getItem("MUSICERA_API_BASE") ||
+    (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+      ? "http://localhost:3000"
+      : ""),
+)
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/\/api$/i, "");
 const API_URL = `${API_BASE}/api`;
+
+function canUseApi() {
+  if (API_BASE) {
+    return true;
+  }
+
+  updateFaceStatus(
+    "error",
+    "API base is not configured. Add backend URL in api-config.js.",
+  );
+  return false;
+}
 
 // DOM Elements
 const faceModal = document.getElementById("faceModal");
@@ -134,6 +150,10 @@ function closeOtpModal(clearPending = false) {
 }
 
 async function requestSignupOtp(signupPayload, isResend = false) {
+  if (!canUseApi()) {
+    return false;
+  }
+
   const signupSubmitBtn = document.querySelector("#signupForm .btn-submit");
 
   if (!signupPayload) {
@@ -658,6 +678,12 @@ function persistLoggedInUser(user) {
 }
 
 async function submitFaceFrames(frames) {
+  if (!canUseApi()) {
+    captureInProgress = false;
+    stableDetectionCount = 0;
+    return;
+  }
+
   const normalizedFrames = Array.isArray(frames)
     ? frames.filter((frame) => typeof frame === "string" && frame.trim())
     : [];
@@ -927,6 +953,13 @@ function updateFaceStatus(status, message) {
 document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
+  if (!canUseApi()) {
+    alert(
+      "Backend API is not configured. Update api-config.js with your backend URL.",
+    );
+    return;
+  }
+
   // Check if face login is enabled
   const faceLoginToggleEl = document.getElementById("faceLoginToggle");
   if (faceLoginToggleEl && faceLoginToggleEl.checked) {
@@ -1028,6 +1061,14 @@ document.getElementById("signupForm")?.addEventListener("submit", async (e) => {
 
 otpForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  if (!canUseApi()) {
+    setOtpStatus(
+      "error",
+      "Backend API is not configured. Update api-config.js.",
+    );
+    return;
+  }
 
   if (!pendingSignupPayload?.email) {
     setOtpStatus(

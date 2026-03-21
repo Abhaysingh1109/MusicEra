@@ -1,13 +1,17 @@
 // MusicEra Dashboard - YouTube Music Search
 // Handles search, results, and player
 
-const API_BASE =
+const API_BASE = String(
   window.MUSICERA_API_BASE ||
-  localStorage.getItem("MUSICERA_API_BASE") ||
-  (window.location.hostname === "localhost" ||
-  window.location.hostname === "127.0.0.1"
-    ? "http://localhost:3000"
-    : `${window.location.origin}`);
+    localStorage.getItem("MUSICERA_API_BASE") ||
+    (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+      ? "http://localhost:3000"
+      : ""),
+)
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/\/api$/i, "");
 const API_URL = `${API_BASE}/api`;
 let currentResults = [];
 let currentPlayerVideoId = null;

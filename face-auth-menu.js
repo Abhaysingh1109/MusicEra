@@ -1,10 +1,14 @@
-const FACE_AUTH_API_BASE =
+const FACE_AUTH_API_BASE = String(
   window.MUSICERA_API_BASE ||
-  localStorage.getItem("MUSICERA_API_BASE") ||
-  (window.location.hostname === "localhost" ||
-  window.location.hostname === "127.0.0.1"
-    ? "http://localhost:3000"
-    : `${window.location.origin}`);
+    localStorage.getItem("MUSICERA_API_BASE") ||
+    (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+      ? "http://localhost:3000"
+      : ""),
+)
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/\/api$/i, "");
 const FACE_AUTH_API_URL = `${FACE_AUTH_API_BASE}/api`;
 const FACE_AUTH_MODEL_URLS = [
   "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model",
@@ -366,6 +370,16 @@ async function collectFaceAuthFrames(activeToken) {
 }
 
 async function submitFaceAuthFrames(frames, setupButton) {
+  if (!FACE_AUTH_API_BASE) {
+    updateFaceAuthStatus(
+      "error",
+      "Backend API is not configured. Update api-config.js with your backend URL.",
+    );
+    faceAuthMenuCaptureInProgress = false;
+    faceAuthMenuStableDetectionCount = 0;
+    return;
+  }
+
   const userData = getStoredUserData();
   if (!userData?.email) {
     updateFaceAuthStatus(
