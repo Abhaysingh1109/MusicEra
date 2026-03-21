@@ -89,6 +89,55 @@ const genreChips = document.querySelectorAll(".genre-chip");
 
 let currentUser = null;
 let activeMoodFromHistory = "";
+let forcedMood = "";
+
+const VALID_MOODS = new Set([
+  "happy",
+  "sad",
+  "angry",
+  "fear",
+  "disgust",
+  "surprise",
+  "neutral",
+]);
+
+function normalizeValidMood(value) {
+  const mood = String(value || "")
+    .trim()
+    .toLowerCase();
+  return VALID_MOODS.has(mood) ? mood : "";
+}
+
+const LATEST_MOOD_SESSION_KEY = "latestDetectedMoodSnapshot";
+const LATEST_MOOD_MAX_AGE_MS = 30 * 60 * 1000;
+
+function getLatestDetectedMoodFromSession() {
+  const rawValue = sessionStorage.getItem(LATEST_MOOD_SESSION_KEY);
+  if (!rawValue) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    const detectedMood = normalizeValidMood(parsed?.mood);
+    const detectedAt = Number(parsed?.detectedAt || 0);
+
+    if (!detectedMood || !Number.isFinite(detectedAt)) {
+      sessionStorage.removeItem(LATEST_MOOD_SESSION_KEY);
+      return "";
+    }
+
+    if (Date.now() - detectedAt > LATEST_MOOD_MAX_AGE_MS) {
+      sessionStorage.removeItem(LATEST_MOOD_SESSION_KEY);
+      return "";
+    }
+
+    return detectedMood;
+  } catch (error) {
+    sessionStorage.removeItem(LATEST_MOOD_SESSION_KEY);
+    return "";
+  }
+}
 
 let feedMode = "recommended";
 let activeGenreLabel = "For You";
@@ -107,13 +156,79 @@ document.addEventListener("DOMContentLoaded", () => {
 
   currentUser = JSON.parse(userData);
 
-  // const user = JSON.parse(userData);
-  // showUserBar(user);
-
+  // Initialize event listeners first
   if (searchInput) searchInput.focus();
   initEventListeners();
-  loadInitialFeed();
+
+  // Check for emotion-based mood recommendation
+  const urlParams = new URLSearchParams(window.location.search);
+  const moodParam = urlParams.get("mood");
+  const sessionMood = sessionStorage.getItem("moodForRecommendation");
+  const latestDetectedMood = getLatestDetectedMoodFromSession();
+  const selectedErasStr = sessionStorage.getItem("selectedEras");
+  const selectedLanguagesStr = sessionStorage.getItem("selectedLanguages");
+
+  const requestedMood = normalizeValidMood(
+    moodParam || sessionMood || latestDetectedMood,
+  );
+
+  if (requestedMood) {
+    const mood = requestedMood;
+    forcedMood = mood;
+    activeMoodFromHistory = forcedMood;
+    const searchQuery = buildMoodSearchQuery(
+      mood,
+      selectedErasStr,
+      selectedLanguagesStr,
+    );
+    loadInitialFeed(
+      searchQuery,
+      mood.charAt(0).toUpperCase() + mood.slice(1) + " Music",
+    );
+
+    // Clean up session storage
+    sessionStorage.removeItem("moodForRecommendation");
+    sessionStorage.removeItem("selectedEras");
+    sessionStorage.removeItem("selectedLanguages");
+  } else {
+    // Load default feed
+    loadInitialFeed();
+  }
 });
+
+function buildMoodSearchQuery(mood, erasStr, languagesStr) {
+  const normalizedMood = normalizeValidMood(mood);
+  const moodSeedQuery = {
+    happy: "upbeat party dance feel good hits",
+    sad: "emotional soothing acoustic heartfelt songs",
+    angry: "high energy rock rap motivational power songs",
+    neutral: "chill lofi relaxing focus music",
+    surprise: "trending viral latest chartbusters",
+    fear: "calm healing relaxing ambient songs",
+    disgust: "refreshing positive motivational songs",
+  };
+
+  let query = moodSeedQuery[normalizedMood] || "top hits";
+
+  try {
+    if (erasStr) {
+      const eras = JSON.parse(erasStr);
+      if (eras.length > 0) {
+        query += " " + eras[0];
+      }
+    }
+    if (languagesStr) {
+      const languages = JSON.parse(languagesStr);
+      if (languages.length > 0) {
+        query += " " + languages[0];
+      }
+    }
+  } catch (e) {
+    console.error("Error parsing preferences:", e);
+  }
+
+  return query;
+}
 
 function setRecommendationHeader(titleText) {
   if (recommendationTitle) {
@@ -131,6 +246,20 @@ function getUserDisplayName() {
 
 function updateHeaderWithMood(profile, isSearchMode) {
   const userName = getUserDisplayName();
+
+  if (forcedMood) {
+    const moodText = forcedMood.charAt(0).toUpperCase() + forcedMood.slice(1);
+    activeMoodFromHistory = forcedMood;
+    if (isSearchMode) {
+      setRecommendationHeader(
+        `${userName}, your mood is ${moodText} - showing matching songs`,
+      );
+      return;
+    }
+    setRecommendationHeader(`${userName}, your mood is ${moodText}`);
+    return;
+  }
+
   if (!profile?.dominantMood) {
     activeMoodFromHistory = "";
     if (isSearchMode) {
@@ -141,10 +270,21 @@ function updateHeaderWithMood(profile, isSearchMode) {
     return;
   }
 
-  activeMoodFromHistory = profile.dominantMood;
+  const normalizedProfileMood = normalizeValidMood(profile.dominantMood);
+  if (!normalizedProfileMood) {
+    activeMoodFromHistory = "";
+    if (isSearchMode) {
+      setRecommendationHeader(`${userName}, searching songs for your vibe`);
+      return;
+    }
+    setRecommendationHeader(`${userName}, checking your mood from history`);
+    return;
+  }
+
+  activeMoodFromHistory = normalizedProfileMood;
   const moodText =
-    profile.dominantMood.charAt(0).toUpperCase() +
-    profile.dominantMood.slice(1);
+    normalizedProfileMood.charAt(0).toUpperCase() +
+    normalizedProfileMood.slice(1);
 
   if (isSearchMode) {
     setRecommendationHeader(
@@ -175,6 +315,7 @@ async function requestSearch(query, pageToken = "") {
     userId: currentUser?.id || null,
     email: currentUser?.email || null,
     moodAware: true,
+    preferredMood: forcedMood || null,
   };
 
   const response = await fetch(`${API_URL}/search`, {
@@ -267,7 +408,14 @@ async function loadInitialFeed(customQuery = "", customLabel = "For You") {
   feedMode = "recommended";
   activeGenreQuery = customQuery;
   activeGenreLabel = customLabel;
-  setRecommendationHeader(`${userName}, checking your mood from history`);
+  if (forcedMood) {
+    const moodText = forcedMood.charAt(0).toUpperCase() + forcedMood.slice(1);
+    setRecommendationHeader(
+      `${userName}, your mood is ${moodText} - showing matching songs`,
+    );
+  } else {
+    setRecommendationHeader(`${userName}, checking your mood from history`);
+  }
   setActiveGenreChip(customLabel);
 
   showLoading(true);

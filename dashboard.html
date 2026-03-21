@@ -1,168 +1,199 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MusicEra - Dashboard</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="navbar-styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="navbar-styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"
+    ></script>
     <style>
-        .dashboard-page {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 40px 20px 40px 20px;
-            text-align: center;
-        }
+      .dashboard-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px 40px 20px;
+        text-align: center;
+      }
 
-        body.has-navbar .dashboard-container {
-            padding-top: 100px;
-        }
+      body.has-navbar .dashboard-container {
+        padding-top: 100px;
+      }
 
-        .welcome-card {
-            background: var(--glass-bg, rgba(255, 255, 255, 0.05));
-            border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-            border-radius: 24px;
-            padding: 60px 80px;
-            max-width: 600px;
-            animation: fadeIn 0.5s ease;
-        }
+      .welcome-card {
+        background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+        border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+        border-radius: 24px;
+        padding: 60px 80px;
+        max-width: 600px;
+        animation: fadeIn 0.5s ease;
+      }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
         }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
 
-        .welcome-icon {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(135deg, var(--primary, #6366f1), var(--secondary, #ec4899));
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 30px;
-            font-size: 2.5rem;
-            color: white;
-        }
+      .welcome-icon {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(
+          135deg,
+          var(--primary, #6366f1),
+          var(--secondary, #ec4899)
+        );
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 30px;
+        font-size: 2.5rem;
+        color: white;
+      }
 
-        .welcome-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.5rem;
-            margin-bottom: 15px;
-            background: linear-gradient(135deg, var(--primary, #6366f1), var(--secondary, #ec4899));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
+      .welcome-title {
+        font-family: "Playfair Display", serif;
+        font-size: 2.5rem;
+        margin-bottom: 15px;
+        background: linear-gradient(
+          135deg,
+          var(--primary, #6366f1),
+          var(--secondary, #ec4899)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
 
-        .welcome-subtitle {
-            font-size: 1.2rem;
-            color: var(--muted, #94a3b8);
-            margin-bottom: 40px;
-        }
+      .welcome-subtitle {
+        font-size: 1.2rem;
+        color: var(--muted, #94a3b8);
+        margin-bottom: 40px;
+      }
 
-        .user-info {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 40px;
-            padding: 20px;
-            background: rgba(99, 102, 241, 0.1);
-            border-radius: 14px;
-        }
+      .user-info {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+        margin-bottom: 40px;
+        padding: 20px;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 14px;
+      }
 
-        .user-avatar {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary, #6366f1), var(--secondary, #ec4899));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            color: white;
-        }
+      .user-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(
+          135deg,
+          var(--primary, #6366f1),
+          var(--secondary, #ec4899)
+        );
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+      }
 
-        .user-details {
-            text-align: left;
-        }
+      .user-details {
+        text-align: left;
+      }
 
-        .user-name {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: var(--light, #f8fafc);
-        }
+      .user-name {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: var(--light, #f8fafc);
+      }
 
-        .user-email {
-            font-size: 0.9rem;
-            color: var(--muted, #94a3b8);
-        }
+      .user-email {
+        font-size: 0.9rem;
+        color: var(--muted, #94a3b8);
+      }
 
-        .dashboard-actions {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
+      .dashboard-actions {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
 
-        .btn-dashboard {
-            padding: 16px 32px;
-            border: none;
-            border-radius: 14px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Poppins', sans-serif;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+      .btn-dashboard {
+        padding: 16px 32px;
+        border: none;
+        border-radius: 14px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-family: "Poppins", sans-serif;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
 
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary, #6366f1), var(--secondary, #ec4899));
-            color: white;
-        }
+      .btn-primary {
+        background: linear-gradient(
+          135deg,
+          var(--primary, #6366f1),
+          var(--secondary, #ec4899)
+        );
+        color: white;
+      }
 
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.35);
-        }
+      .btn-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 40px rgba(99, 102, 241, 0.35);
+      }
 
-        .btn-secondary {
-            background: var(--glass-bg, rgba(255, 255, 255, 0.05));
-            border: 2px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-            color: var(--light, #f8fafc);
-        }
+      .btn-secondary {
+        background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+        border: 2px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+        color: var(--light, #f8fafc);
+      }
 
-        .btn-secondary:hover {
-            border-color: var(--primary, #6366f1);
-        }
+      .btn-secondary:hover {
+        border-color: var(--primary, #6366f1);
+      }
 
-        .face-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: rgba(16, 185, 129, 0.2);
-            border-radius: 50px;
-            color: #34d399;
-            font-size: 0.85rem;
-            margin-top: 10px;
-        }
+      .face-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(16, 185, 129, 0.2);
+        border-radius: 50px;
+        color: #34d399;
+        font-size: 0.85rem;
+        margin-top: 10px;
+      }
     </style>
-</head>
-<body class="has-navbar">
+  </head>
+  <body class="has-navbar">
     <!-- Navbar - Embedded for static compatibility -->
     <nav id="musicera-navbar" class="navbar">
       <div class="navbar-container">
@@ -171,7 +202,7 @@
           <i class="fas fa-record-vinyl" id="logoIcon"></i>
           <span id="logoText">MusicEra</span>
         </div>
-        
+
         <!-- Hamburger Button -->
         <button class="navbar-hamburger" id="navbarToggle">
           <span></span>
@@ -179,7 +210,7 @@
           <span></span>
         </button>
       </div>
-      
+
       <!-- User Dropdown Menu -->
       <div class="navbar-dropdown" id="navbarDropdown">
         <div class="user-profile">
@@ -189,7 +220,7 @@
           <div class="user-details">
             <div class="user-name" id="navbarUserName">User</div>
             <div class="user-email" id="navbarUserEmail">user@example.com</div>
-            <div class="face-badge" id="navbarFaceBadge" style="display: none;">
+            <div class="face-badge" id="navbarFaceBadge" style="display: none">
               <i class="fas fa-face-smile"></i> Face ID Enabled
             </div>
           </div>
@@ -202,8 +233,8 @@
     </nav>
 
     <div class="dashboard-container">
-        <!-- Welcome Header -->
-        <!-- <header class="dashboard-header">
+      <!-- Welcome Header -->
+      <!-- <header class="dashboard-header">
             <div class="welcome-card">
                 <div class="welcome-icon">
                     <i class="fas fa-music"></i>
@@ -226,148 +257,203 @@
             </div>
         </header> -->
 
-        <!-- Music Search Section -->
-        <main class="music-search-section">
-            <div class="search-hero">
-                <h2 class="search-title">Search Any Song</h2>
-                    <!-- Search Container -->
-                    <div class="search-container">
-                        <div class="search-box">
-                            <i class="fas fa-search search-icon"></i>
-                            <input type="text" id="musicSearchInput" placeholder="Search for songs, artists, albums... (e.g. 'Shape of You')">
-                            <button id="searchBtn" class="search-btn">
-                                <i class="fas fa-play"></i>
-                            </button>
-                            <button id="clearSearch" class="clear-btn">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                        <div id="loadingSpinner" class="loading-spinner" style="display: none;">
-                            <i class="fas fa-spinner fa-spin"></i>
-                        </div>
-                    </div>
+      <!-- Music Search Section -->
+      <main class="music-search-section">
+        <div class="search-hero">
+          <h2 class="search-title">Search Any Song</h2>
+          <!-- Search Container -->
+          <div class="search-container">
+            <div class="search-box">
+              <i class="fas fa-search search-icon"></i>
+              <input
+                type="text"
+                id="musicSearchInput"
+                placeholder="Search for songs, artists, albums... (e.g. 'Shape of You')"
+              />
+              <button id="searchBtn" class="search-btn">
+                <i class="fas fa-play"></i>
+              </button>
+              <button id="clearSearch" class="clear-btn">
+                <i class="fas fa-times"></i>
+              </button>
             </div>
+            <div
+              id="loadingSpinner"
+              class="loading-spinner"
+              style="display: none"
+            >
+              <i class="fas fa-spinner fa-spin"></i>
+            </div>
+          </div>
+        </div>
 
-            <!-- Results Header -->
-            <div class="results-header">
-                <div class="results-header-top">
-                    <h3 id="recommendationTitle" class="recommendation-title">Recommended for you</h3>
-                    <button id="shuffleFeedBtn" class="shuffle-feed-btn" type="button">
-                        <i class="fas fa-shuffle"></i>
-                        Shuffle
-                    </button>
-                </div>
-                <div id="genreChips" class="genre-chips" aria-label="Music categories">
-                    <button class="genre-chip active" type="button" data-label="For You" data-query="">For You</button>
-                    <button class="genre-chip" type="button" data-label="Pop" data-query="top pop songs">Pop</button>
-                    <button class="genre-chip" type="button" data-label="Lo-fi" data-query="lofi chill beats">Lo-fi</button>
-                    <button class="genre-chip" type="button" data-label="Bollywood" data-query="latest bollywood songs">Bollywood</button>
-                    <button class="genre-chip" type="button" data-label="Punjabi" data-query="trending punjabi songs">Punjabi</button>
-                </div>
-                <span id="resultsCount">0 results</span>
-            </div>
+        <!-- Results Header -->
+        <div class="results-header">
+          <div class="results-header-top">
+            <h3 id="recommendationTitle" class="recommendation-title">
+              Recommended for you
+            </h3>
+            <button id="shuffleFeedBtn" class="shuffle-feed-btn" type="button">
+              <i class="fas fa-shuffle"></i>
+              Shuffle
+            </button>
+          </div>
+          <div
+            id="genreChips"
+            class="genre-chips"
+            aria-label="Music categories"
+          >
+            <button
+              class="genre-chip active"
+              type="button"
+              data-label="For You"
+              data-query=""
+            >
+              For You
+            </button>
+            <button
+              class="genre-chip"
+              type="button"
+              data-label="Pop"
+              data-query="top pop songs"
+            >
+              Pop
+            </button>
+            <button
+              class="genre-chip"
+              type="button"
+              data-label="Lo-fi"
+              data-query="lofi chill beats"
+            >
+              Lo-fi
+            </button>
+            <button
+              class="genre-chip"
+              type="button"
+              data-label="Bollywood"
+              data-query="latest bollywood songs"
+            >
+              Bollywood
+            </button>
+            <button
+              class="genre-chip"
+              type="button"
+              data-label="Punjabi"
+              data-query="trending punjabi songs"
+            >
+              Punjabi
+            </button>
+          </div>
+          <span id="resultsCount">0 results</span>
+        </div>
 
-            <!-- Search Results -->
-            <div id="searchResults" class="search-results"></div>
-            <div id="noResultsMsg" class="no-results" style="display: none;">
-                <i class="fas fa-search"></i>
-                <h3>No songs found</h3>
-                <p>Try searching for a different song or artist</p>
-            </div>
+        <!-- Search Results -->
+        <div id="searchResults" class="search-results"></div>
+        <div id="noResultsMsg" class="no-results" style="display: none">
+          <i class="fas fa-search"></i>
+          <h3>No songs found</h3>
+          <p>Try searching for a different song or artist</p>
+        </div>
 
-            <!-- YouTube Player -->
-            <div id="youtubePlayer" class="player-container">
-                <button class="player-overlay-close" onclick="closeOverlay()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        </main>
+        <!-- YouTube Player -->
+        <div id="youtubePlayer" class="player-container">
+          <button class="player-overlay-close" onclick="closeOverlay()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </main>
     </div>
 
     <script>
-        // Navbar functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const hamburger = document.getElementById('navbarToggle');
-            const dropdown = document.getElementById('navbarDropdown');
-            const navbar = document.getElementById('musicera-navbar');
-            
-            hamburger.addEventListener('click', () => {
-                hamburger.classList.toggle('active');
-                dropdown.classList.toggle('active');
-            });
-            
-            // Close dropdown on outside click
-            document.addEventListener('click', (e) => {
-                if (!navbar.contains(e.target)) {
-                    hamburger.classList.remove('active');
-                    dropdown.classList.remove('active');
-                }
-            });
+      // Navbar functionality
+      document.addEventListener("DOMContentLoaded", function () {
+        const hamburger = document.getElementById("navbarToggle");
+        const dropdown = document.getElementById("navbarDropdown");
+        const navbar = document.getElementById("musicera-navbar");
+
+        hamburger.addEventListener("click", () => {
+          hamburger.classList.toggle("active");
+          dropdown.classList.toggle("active");
         });
 
-        // Get user data from sessionStorage
-        const userData = JSON.parse(sessionStorage.getItem('userData') || '{}');
-        
-        if (!userData.name) {
-            window.location.href = 'index.html';
-        }
-        
-        // Populate navbar user info
-        document.getElementById('navbarUserName').textContent = userData.name || 'User';
-        document.getElementById('navbarUserEmail').textContent = userData.email || '';
-        if (userData.hasFace) {
-            document.getElementById('navbarFaceBadge').style.display = 'inline-flex';
-        }
-        
-        // Display user info (existing elements)
-        const userNameEl = document.getElementById('userName');
-        if (userNameEl) userNameEl.textContent = userData.name.split(' ')[0];
-        
-        const displayNameEl = document.getElementById('displayName');
-        if (displayNameEl) displayNameEl.textContent = userData.name;
-        
-        const userEmailEl = document.getElementById('userEmail');
-        if (userEmailEl) userEmailEl.textContent = userData.email;
-        
-        const faceBadgeEl = document.getElementById('faceBadge');
-        if (userData.hasFace && faceBadgeEl) {
-            faceBadgeEl.style.display = 'inline-flex';
-        }
-        
-        window.logout = function() {
-            sessionStorage.removeItem('userData');
-            sessionStorage.removeItem('fromPage');
-            window.location.href = 'index.html';
-        };
-        
-        window.goToEmotions = function() {
-          sessionStorage.removeItem('fromPage');
-          window.location.href = 'emotion.html';
-        };
-
-        function handleLogoClick() {
-          const fromPage = sessionStorage.getItem('fromPage');
-          if (fromPage === 'emotion.html') {
-            goToEmotions();
-          } else {
-            window.location.reload();
-          }
-        }
-
-        // Dynamic logo setup
-        document.addEventListener('DOMContentLoaded', function() {
-          const logoIcon = document.getElementById('logoIcon');
-          const logoText = document.getElementById('logoText');
-          const fromPage = sessionStorage.getItem('fromPage');
-          
-          if (fromPage === 'emotion.html') {
-            logoIcon.className = 'fas fa-arrow-left';
-            logoText.textContent = 'Back';
-            document.title = 'MusicEra - Back to Emotions';
+        // Close dropdown on outside click
+        document.addEventListener("click", (e) => {
+          if (!navbar.contains(e.target)) {
+            hamburger.classList.remove("active");
+            dropdown.classList.remove("active");
           }
         });
+      });
+
+      // Get user data from sessionStorage
+      const userData = JSON.parse(sessionStorage.getItem("userData") || "{}");
+
+      if (!userData.name) {
+        window.location.href = "index.html";
+      }
+
+      // Populate navbar user info
+      document.getElementById("navbarUserName").textContent =
+        userData.name || "User";
+      document.getElementById("navbarUserEmail").textContent =
+        userData.email || "";
+      if (userData.hasFace) {
+        document.getElementById("navbarFaceBadge").style.display =
+          "inline-flex";
+      }
+
+      // Display user info (existing elements)
+      const userNameEl = document.getElementById("userName");
+      if (userNameEl) userNameEl.textContent = userData.name.split(" ")[0];
+
+      const displayNameEl = document.getElementById("displayName");
+      if (displayNameEl) displayNameEl.textContent = userData.name;
+
+      const userEmailEl = document.getElementById("userEmail");
+      if (userEmailEl) userEmailEl.textContent = userData.email;
+
+      const faceBadgeEl = document.getElementById("faceBadge");
+      if (userData.hasFace && faceBadgeEl) {
+        faceBadgeEl.style.display = "inline-flex";
+      }
+
+      window.logout = function () {
+        sessionStorage.removeItem("userData");
+        sessionStorage.removeItem("fromPage");
+        window.location.href = "index.html";
+      };
+
+      window.goToEmotions = function () {
+        sessionStorage.removeItem("fromPage");
+        window.location.href = "emotion.html";
+      };
+
+      function handleLogoClick() {
+        const fromPage = sessionStorage.getItem("fromPage");
+        if (fromPage === "emotion.html") {
+          goToEmotions();
+        } else {
+          window.location.reload();
+        }
+      }
+
+      // Dynamic logo setup
+      document.addEventListener("DOMContentLoaded", function () {
+        const logoIcon = document.getElementById("logoIcon");
+        const logoText = document.getElementById("logoText");
+        const fromPage = sessionStorage.getItem("fromPage");
+        const fromMoodFlow = new URLSearchParams(window.location.search).has(
+          "mood",
+        );
+
+        if (fromPage === "emotion.html" || fromMoodFlow) {
+          logoIcon.className = "fas fa-arrow-left";
+          logoText.textContent = "Back";
+          document.title = "MusicEra - Back to Emotions";
+        }
+      });
     </script>
     <script src="face-auth-menu.js" defer></script>
     <script src="dashboard.js" defer></script>
-</body>
+  </body>
 </html>

@@ -1,537 +1,727 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MusicEra - Emotion Center</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="navbar-styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="navbar-styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"
+    ></script>
     <style>
-        body.has-navbar .emotion-page {
-            padding-top: 100px;
-        }
+      body.has-navbar .emotion-page {
+        padding-top: 100px;
+      }
 
-        .emotion-page {
-            min-height: 100vh;
-            padding: 40px 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
-            position: relative;
-            overflow: hidden;
-        }
+      .emotion-page {
+        min-height: 100vh;
+        padding: 40px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: linear-gradient(
+          135deg,
+          #0f0f23 0%,
+          #1a1a2e 50%,
+          #16213e 100%
+        );
+        position: relative;
+        overflow: hidden;
+      }
 
-        .emotion-header {
-            text-align: center;
-            margin-bottom: 60px;
-            max-width: 600px;
-        }
+      .emotion-header {
+        text-align: center;
+        margin-bottom: 60px;
+        max-width: 600px;
+      }
 
-        .emotion-logo {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
+      .emotion-logo {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
 
-        .emotion-logo i {
-            font-size: 3rem;
-            background: linear-gradient(135deg, #6366f1, #ec4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+      .emotion-logo i {
+        font-size: 3rem;
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .emotion-title {
+        font-family: "Playfair Display", serif;
+        font-size: 3rem;
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 10px;
+      }
+
+      .emotion-subtitle {
+        font-size: 1.2rem;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 300;
+      }
+
+      .emotion-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 30px;
+        max-width: 1200px;
+        width: 100%;
+        margin-bottom: 60px;
+      }
+
+      .emotion-card {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 24px;
+        padding: 40px 30px;
+        text-align: center;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        animation: slideInUp 0.6s ease forwards;
+        opacity: 0;
+        transform: translateY(30px);
+      }
+
+      .emotion-card:nth-child(1) {
+        animation-delay: 0.1s;
+      }
+      .emotion-card:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .emotion-card:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+
+      .emotion-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #6366f1, #ec4899, #6366f1);
+        background-size: 200% 100%;
+        animation: shimmer 3s infinite;
+      }
+
+      .emotion-card:hover {
+        transform: translateY(-12px);
+        box-shadow: 0 30px 60px rgba(99, 102, 241, 0.25);
+        border-color: rgba(99, 102, 241, 0.4);
+      }
+
+      .emotion-card i {
+        font-size: 4rem;
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 25px;
+        display: block;
+      }
+
+      .emotion-card h3 {
+        font-family: "Playfair Display", serif;
+        font-size: 1.8rem;
+        margin-bottom: 15px;
+        color: white;
+      }
+
+      .emotion-card p {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1.1rem;
+        margin-bottom: 30px;
+        line-height: 1.6;
+      }
+
+      .emotion-card .btn-explore {
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        color: white;
+        border: none;
+        padding: 16px 40px;
+        border-radius: 50px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+      }
+
+      .emotion-card .btn-explore:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
+      }
+
+      .emotion-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(5, 8, 20, 0.82);
+        backdrop-filter: blur(12px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        z-index: 1000;
+      }
+
+      .emotion-modal.active {
+        display: flex;
+      }
+
+      .emotion-modal-panel {
+        width: min(1080px, 100%);
+        background: rgba(16, 22, 48, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 28px;
+        padding: 28px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      }
+
+      .emotion-modal-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: flex-start;
+        margin-bottom: 24px;
+      }
+
+      .emotion-modal-header h2 {
+        margin: 0 0 8px;
+        color: white;
+        font-family: "Playfair Display", serif;
+        font-size: 2rem;
+      }
+
+      .emotion-modal-header p {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.72);
+      }
+
+      .emotion-close-btn {
+        border: none;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        cursor: pointer;
+        color: white;
+        background: rgba(255, 255, 255, 0.12);
+        font-size: 1rem;
+      }
+
+      .emotion-modal-body {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 24px;
+      }
+
+      .camera-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 24px;
+        padding: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .camera-frame {
+        position: relative;
+        border-radius: 20px;
+        overflow: hidden;
+        background: #060816;
+        min-height: 360px;
+      }
+
+      .camera-frame video {
+        width: 100%;
+        height: 100%;
+        min-height: 360px;
+        object-fit: cover;
+        display: block;
+      }
+
+      .camera-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        border: 2px solid rgba(99, 102, 241, 0.45);
+        border-radius: 20px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      }
+
+      .camera-guidance {
+        margin-top: 14px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.95rem;
+      }
+
+      .results-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 24px;
+        padding: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: white;
+      }
+
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 999px;
+        padding: 10px 16px;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.9);
+        margin-bottom: 18px;
+      }
+
+      .status-chip i {
+        color: #7dd3fc;
+      }
+
+      .dominant-emotion {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0 0 10px;
+      }
+
+      .emotion-helper {
+        margin: 0 0 24px;
+        color: rgba(255, 255, 255, 0.72);
+        line-height: 1.6;
+      }
+
+      .emotion-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .emotion-line {
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .emotion-line-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 8px;
+        font-size: 0.96rem;
+      }
+
+      .emotion-line strong {
+        text-transform: capitalize;
+      }
+
+      .emotion-bar {
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+      }
+
+      .emotion-bar span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #6366f1, #ec4899);
+      }
+
+      .emotion-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+        flex-wrap: wrap;
+      }
+
+      .emotion-action-btn {
+        border: none;
+        border-radius: 999px;
+        padding: 14px 22px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .emotion-action-btn.primary {
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        color: white;
+      }
+
+      .emotion-action-btn.secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+      }
+
+      .emotion-hidden-canvas {
+        display: none;
+      }
+
+      .history-modal-panel {
+        width: min(1120px, 100%);
+        max-height: min(88vh, 920px);
+        overflow: auto;
+        background: rgba(16, 22, 48, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 28px;
+        padding: 28px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      }
+
+      .history-modal-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+        gap: 24px;
+      }
+
+      .history-chart-panel,
+      .history-list-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 24px;
+        padding: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: white;
+      }
+
+      .history-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 18px 0 24px;
+      }
+
+      .history-summary-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.07);
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 0.92rem;
+      }
+
+      .history-chart {
+        min-height: 320px;
+        border-radius: 20px;
+        padding: 18px;
+        background:
+          linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.04),
+            rgba(255, 255, 255, 0.01)
+          ),
+          rgba(7, 11, 27, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .history-chart svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .history-chart-empty {
+        min-height: 240px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.65);
+        line-height: 1.6;
+      }
+
+      .history-legend {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+
+      .history-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: rgba(255, 255, 255, 0.84);
+        font-size: 0.92rem;
+      }
+
+      .history-legend-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+      }
+
+      .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .history-entry {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .history-entry-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .history-entry-title {
+        font-weight: 700;
+        color: white;
+      }
+
+      .history-entry-date {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.88rem;
+        white-space: nowrap;
+      }
+
+      .history-entry-meta {
+        color: rgba(255, 255, 255, 0.74);
+        font-size: 0.92rem;
+        line-height: 1.5;
+      }
+
+      .history-entry-user {
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      @keyframes slideInUp {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes shimmer {
+        0%,
+        100% {
+          background-position: 200% 0;
+        }
+        50% {
+          background-position: 0 0;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .emotion-grid {
+          grid-template-columns: 1fr;
+          gap: 20px;
         }
 
         .emotion-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 3rem;
-            background: linear-gradient(135deg, #6366f1, #ec4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 10px;
-        }
-
-        .emotion-subtitle {
-            font-size: 1.2rem;
-            color: rgba(255,255,255,0.8);
-            font-weight: 300;
-        }
-
-        .emotion-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 30px;
-            max-width: 1200px;
-            width: 100%;
-            margin-bottom: 60px;
-        }
-
-        .emotion-card {
-            background: rgba(255,255,255,0.08);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 24px;
-            padding: 40px 30px;
-            text-align: center;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-            animation: slideInUp 0.6s ease forwards;
-            opacity: 0;
-            transform: translateY(30px);
-        }
-
-        .emotion-card:nth-child(1) { animation-delay: 0.1s; }
-        .emotion-card:nth-child(2) { animation-delay: 0.2s; }
-        .emotion-card:nth-child(3) { animation-delay: 0.3s; }
-
-        .emotion-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #6366f1, #ec4899, #6366f1);
-            background-size: 200% 100%;
-            animation: shimmer 3s infinite;
-        }
-
-        .emotion-card:hover {
-            transform: translateY(-12px);
-            box-shadow: 0 30px 60px rgba(99, 102, 241, 0.25);
-            border-color: rgba(99, 102, 241, 0.4);
-        }
-
-        .emotion-card i {
-            font-size: 4rem;
-            background: linear-gradient(135deg, #6366f1, #ec4899);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 25px;
-            display: block;
-        }
-
-        .emotion-card h3 {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.8rem;
-            margin-bottom: 15px;
-            color: white;
-        }
-
-        .emotion-card p {
-            color: rgba(255,255,255,0.8);
-            font-size: 1.1rem;
-            margin-bottom: 30px;
-            line-height: 1.6;
-        }
-
-        .emotion-card .btn-explore {
-            background: linear-gradient(135deg, #6366f1, #ec4899);
-            color: white;
-            border: none;
-            padding: 16px 40px;
-            border-radius: 50px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
-        }
-
-        .emotion-card .btn-explore:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
-        }
-
-        .emotion-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(5, 8, 20, 0.82);
-            backdrop-filter: blur(12px);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            z-index: 1000;
-        }
-
-        .emotion-modal.active {
-            display: flex;
+          font-size: 2.2rem;
         }
 
         .emotion-modal-panel {
-            width: min(1080px, 100%);
-            background: rgba(16, 22, 48, 0.96);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 28px;
-            padding: 28px;
-            box-shadow: 0 30px 80px rgba(0,0,0,0.35);
-        }
-
-        .emotion-modal-header {
-            display: flex;
-            justify-content: space-between;
-            gap: 20px;
-            align-items: flex-start;
-            margin-bottom: 24px;
-        }
-
-        .emotion-modal-header h2 {
-            margin: 0 0 8px;
-            color: white;
-            font-family: 'Playfair Display', serif;
-            font-size: 2rem;
-        }
-
-        .emotion-modal-header p {
-            margin: 0;
-            color: rgba(255,255,255,0.72);
-        }
-
-        .emotion-close-btn {
-            border: none;
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            cursor: pointer;
-            color: white;
-            background: rgba(255,255,255,0.12);
-            font-size: 1rem;
+          padding: 20px;
         }
 
         .emotion-modal-body {
-            display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 24px;
-        }
-
-        .camera-panel {
-            background: rgba(255,255,255,0.05);
-            border-radius: 24px;
-            padding: 18px;
-            border: 1px solid rgba(255,255,255,0.08);
-        }
-
-        .camera-frame {
-            position: relative;
-            border-radius: 20px;
-            overflow: hidden;
-            background: #060816;
-            min-height: 360px;
-        }
-
-        .camera-frame video {
-            width: 100%;
-            height: 100%;
-            min-height: 360px;
-            object-fit: cover;
-            display: block;
-        }
-
-        .camera-overlay {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            border: 2px solid rgba(99, 102, 241, 0.45);
-            border-radius: 20px;
-            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-        }
-
-        .camera-guidance {
-            margin-top: 14px;
-            color: rgba(255,255,255,0.7);
-            font-size: 0.95rem;
-        }
-
-        .results-panel {
-            background: rgba(255,255,255,0.05);
-            border-radius: 24px;
-            padding: 24px;
-            border: 1px solid rgba(255,255,255,0.08);
-            color: white;
-        }
-
-        .status-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            border-radius: 999px;
-            padding: 10px 16px;
-            background: rgba(255,255,255,0.08);
-            color: rgba(255,255,255,0.9);
-            margin-bottom: 18px;
-        }
-
-        .status-chip i {
-            color: #7dd3fc;
-        }
-
-        .dominant-emotion {
-            font-size: 2rem;
-            font-weight: 700;
-            margin: 0 0 10px;
-        }
-
-        .emotion-helper {
-            margin: 0 0 24px;
-            color: rgba(255,255,255,0.72);
-            line-height: 1.6;
-        }
-
-        .emotion-lines {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .emotion-line {
-            padding: 14px 16px;
-            border-radius: 16px;
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.08);
-        }
-
-        .emotion-line-header {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            margin-bottom: 8px;
-            font-size: 0.96rem;
-        }
-
-        .emotion-line strong {
-            text-transform: capitalize;
-        }
-
-        .emotion-bar {
-            width: 100%;
-            height: 8px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.08);
-            overflow: hidden;
-        }
-
-        .emotion-bar span {
-            display: block;
-            height: 100%;
-            border-radius: inherit;
-            background: linear-gradient(90deg, #6366f1, #ec4899);
-        }
-
-        .emotion-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 24px;
-            flex-wrap: wrap;
-        }
-
-        .emotion-action-btn {
-            border: none;
-            border-radius: 999px;
-            padding: 14px 22px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .emotion-action-btn.primary {
-            background: linear-gradient(135deg, #6366f1, #ec4899);
-            color: white;
-        }
-
-        .emotion-action-btn.secondary {
-            background: rgba(255,255,255,0.08);
-            color: white;
-        }
-
-        .emotion-hidden-canvas {
-            display: none;
-        }
-
-        .history-modal-panel {
-            width: min(1120px, 100%);
-            max-height: min(88vh, 920px);
-            overflow: auto;
-            background: rgba(16, 22, 48, 0.96);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 28px;
-            padding: 28px;
-            box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+          grid-template-columns: 1fr;
         }
 
         .history-modal-body {
-            display: grid;
-            grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
-            gap: 24px;
+          grid-template-columns: 1fr;
         }
+      }
 
-        .history-chart-panel,
-        .history-list-panel {
-            background: rgba(255,255,255,0.05);
-            border-radius: 24px;
-            padding: 24px;
-            border: 1px solid rgba(255,255,255,0.08);
-            color: white;
-        }
+      /* Recommendation Modal Styles */
+      .recommendation-modal-panel {
+        width: min(900px, 100%);
+        background: rgba(16, 22, 48, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 28px;
+        padding: 40px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+        text-align: center;
+      }
 
-        .history-summary {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin: 18px 0 24px;
-        }
+      .recommendation-header {
+        margin-bottom: 30px;
+      }
 
-        .history-summary-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.07);
-            color: rgba(255,255,255,0.92);
-            font-size: 0.92rem;
-        }
+      .recommendation-emotion {
+        font-size: 4rem;
+        margin: 20px 0;
+        display: block;
+      }
 
-        .history-chart {
-            min-height: 320px;
-            border-radius: 20px;
-            padding: 18px;
-            background:
-                linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)),
-                rgba(7, 11, 27, 0.72);
-            border: 1px solid rgba(255,255,255,0.06);
-        }
+      .recommendation-title {
+        font-family: "Playfair Display", serif;
+        font-size: 2.5rem;
+        color: white;
+        margin: 20px 0;
+      }
 
-        .history-chart svg {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
+      .recommendation-subtitle {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1.1rem;
+        margin-bottom: 30px;
+      }
 
-        .history-chart-empty {
-            min-height: 240px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            color: rgba(255,255,255,0.65);
-            line-height: 1.6;
-        }
+      .recommendation-scan-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(99, 102, 241, 0.2);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        padding: 12px 20px;
+        border-radius: 999px;
+        color: rgba(255, 255, 255, 0.9);
+        margin-bottom: 20px;
+      }
 
-        .history-legend {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-            margin-top: 16px;
-        }
+      .mood-icon {
+        font-size: 3rem;
+        margin: 0 auto 20px;
+        display: block;
+      }
 
-        .history-legend-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: rgba(255,255,255,0.84);
-            font-size: 0.92rem;
-        }
+      .preference-section {
+        margin: 30px 0;
+        text-align: left;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 20px;
+        padding: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
 
-        .history-legend-swatch {
-            width: 12px;
-            height: 12px;
-            border-radius: 999px;
-        }
+      .preference-label {
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 600;
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+      }
 
-        .history-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 18px;
-        }
+      .preference-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+      }
 
-        .history-entry {
-            padding: 16px 18px;
-            border-radius: 18px;
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.08);
-        }
+      .preference-chip {
+        padding: 12px 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.8);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
+      }
 
-        .history-entry-header {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            align-items: center;
-            margin-bottom: 8px;
-        }
+      .preference-chip:hover {
+        border-color: rgba(99, 102, 241, 0.5);
+        background: rgba(99, 102, 241, 0.1);
+      }
 
-        .history-entry-title {
-            font-weight: 700;
-            color: white;
-        }
+      .preference-chip.selected {
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        color: white;
+        border-color: rgba(99, 102, 241, 0.8);
+      }
 
-        .history-entry-date {
-            color: rgba(255,255,255,0.6);
-            font-size: 0.88rem;
-            white-space: nowrap;
-        }
+      .recommendation-actions {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        margin-top: 40px;
+        flex-wrap: wrap;
+      }
 
-        .history-entry-meta {
-            color: rgba(255,255,255,0.74);
-            font-size: 0.92rem;
-            line-height: 1.5;
-        }
+      .recommendation-btn {
+        padding: 16px 32px;
+        border-radius: 999px;
+        border: none;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
 
-        .history-entry-user {
-            color: rgba(255,255,255,0.9);
-            font-weight: 600;
-            margin-bottom: 6px;
-        }
+      .recommendation-btn.primary {
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        color: white;
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+      }
 
-        @keyframes slideInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+      .recommendation-btn.primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
+      }
 
-        @keyframes shimmer {
-            0%, 100% { background-position: 200% 0; }
-            50% { background-position: 0 0; }
-        }
+      .recommendation-btn.secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
 
-        @media (max-width: 768px) {
-            .emotion-grid {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-            
-            .emotion-title {
-                font-size: 2.2rem;
-            }
+      .recommendation-btn.secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
 
-            .emotion-modal-panel {
-                padding: 20px;
-            }
+      .scan-progress {
+        margin-bottom: 20px;
+      }
 
-            .emotion-modal-body {
-                grid-template-columns: 1fr;
-            }
+      .progress-bar {
+        width: 100%;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        overflow: hidden;
+        margin-bottom: 10px;
+      }
 
-            .history-modal-body {
-                grid-template-columns: 1fr;
-            }
-        }
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #6366f1, #ec4899);
+        transition: width 0.3s ease;
+      }
+
+      .scan-counter {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.95rem;
+      }
     </style>
-</head>
-<body class="has-navbar">
+  </head>
+  <body class="has-navbar">
     <!-- Navbar - Embedded for static compatibility -->
     <nav id="musicera-navbar" class="navbar">
       <div class="navbar-container">
@@ -540,7 +730,7 @@
           <i class="fas fa-record-vinyl"></i>
           <span>MusicEra</span>
         </div>
-        
+
         <!-- Hamburger Button -->
         <button class="navbar-hamburger" id="navbarToggle">
           <span></span>
@@ -548,7 +738,7 @@
           <span></span>
         </button>
       </div>
-      
+
       <!-- User Dropdown Menu -->
       <div class="navbar-dropdown" id="navbarDropdown">
         <div class="user-profile">
@@ -558,7 +748,7 @@
           <div class="user-details">
             <div class="user-name" id="navbarUserName">User</div>
             <div class="user-email" id="navbarUserEmail">user@example.com</div>
-            <div class="face-badge" id="navbarFaceBadge" style="display: none;">
+            <div class="face-badge" id="navbarFaceBadge" style="display: none">
               <i class="fas fa-face-smile"></i> Face ID Enabled
             </div>
           </div>
@@ -571,519 +761,882 @@
     </nav>
 
     <div class="emotion-page">
-        <header class="emotion-header">
-            <div class="emotion-logo">
-                <i class="fas fa-face-smile-beam"></i>
-                <h1 class="emotion-title">Emotion Center</h1>
-            </div>
-            <p class="emotion-subtitle">Understand your emotions, discover your music</p>
-        </header>
+      <header class="emotion-header">
+        <div class="emotion-logo">
+          <i class="fas fa-face-smile-beam"></i>
+          <h1 class="emotion-title">Emotion Center</h1>
+        </div>
+        <p class="emotion-subtitle">
+          Understand your emotions, discover your music
+        </p>
+      </header>
 
-        <main class="emotion-grid">
-            <!-- Card 1: Emotion Detection -->
-            <div class="emotion-card" onclick="goToEmotionDetection()">
-                <i class="fas fa-camera"></i>
-                <h3>Emotion Detection</h3>
-                <p>Analyze your current facial expression in real-time to understand your mood right now</p>
-                <button class="btn-explore">
-                    <i class="fas fa-play"></i> Detect Emotion
-                </button>
-            </div>
+      <main class="emotion-grid">
+        <!-- Card 1: Emotion Detection -->
+        <div class="emotion-card" onclick="goToEmotionDetection()">
+          <i class="fas fa-camera"></i>
+          <h3>Emotion Detection</h3>
+          <p>
+            Analyze your current facial expression in real-time to understand
+            your mood right now
+          </p>
+          <button class="btn-explore">
+            <i class="fas fa-play"></i> Detect Emotion
+          </button>
+        </div>
 
-            <!-- Card 2: Emotion History -->
-            <div class="emotion-card" onclick="goToEmotionHistory()">
-                <i class="fas fa-chart-line"></i>
-                <h3>Emotion History</h3>
-                <p>Review your emotion patterns over time and see how your mood evolves with your music journey</p>
-                <button class="btn-explore">
-                    <i class="fas fa-history"></i> View History
-                </button>
-            </div>
+        <!-- Card 2: Emotion History -->
+        <div class="emotion-card" onclick="goToEmotionHistory()">
+          <i class="fas fa-chart-line"></i>
+          <h3>Emotion History</h3>
+          <p>
+            Review your emotion patterns over time and see how your mood evolves
+            with your music journey
+          </p>
+          <button class="btn-explore">
+            <i class="fas fa-history"></i> View History
+          </button>
+        </div>
 
-            <!-- Card 3: Go to Dashboard -->
-            <div class="emotion-card" onclick="goToDashboard()">
-                <i class="fas fa-music"></i>
-                <h3>Music Dashboard</h3>
-                <p>Discover personalized music recommendations based on your emotional state</p>
-                <button class="btn-explore">
-                    <i class="fas fa-arrow-right"></i> Go to Dashboard
-                </button>
-            </div>
-        </main>
+        <!-- Card 3: Go to Dashboard -->
+        <div class="emotion-card" onclick="goToDashboard()">
+          <i class="fas fa-music"></i>
+          <h3>Music Dashboard</h3>
+          <p>
+            Discover personalized music recommendations based on your emotional
+            state
+          </p>
+          <button class="btn-explore">
+            <i class="fas fa-arrow-right"></i> Go to Dashboard
+          </button>
+        </div>
+      </main>
     </div>
 
     <div class="emotion-modal" id="emotionModal">
-        <div class="emotion-modal-panel">
-            <div class="emotion-modal-header">
-                <div>
-                    <h2>Live Emotion Detection</h2>
-                    <p>Allow camera access, look at the screen, and show the expression you want to detect.</p>
-                </div>
-                <button class="emotion-close-btn" type="button" onclick="closeEmotionDetection()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-
-            <div class="emotion-modal-body">
-                <section class="camera-panel">
-                    <div class="camera-frame">
-                        <video id="emotionVideo" autoplay playsinline muted></video>
-                        <div class="camera-overlay"></div>
-                    </div>
-                    <p class="camera-guidance" id="cameraGuidance">
-                        The detector checks your face every 2 seconds and updates the emotion lines automatically.
-                    </p>
-                </section>
-
-                <aside class="results-panel">
-                    <div class="status-chip" id="emotionStatus">
-                        <i class="fas fa-circle-notch fa-spin"></i>
-                        <span>Waiting to start camera...</span>
-                    </div>
-
-                    <p class="dominant-emotion" id="dominantEmotion">No emotion detected yet</p>
-                    <p class="emotion-helper" id="emotionHelper">
-                        When your face is visible, the result panel will show lines for happy, sad, angry and the other detected emotions.
-                    </p>
-
-                    <div class="emotion-lines" id="emotionLines"></div>
-
-                    <div class="emotion-actions">
-                        <button class="emotion-action-btn primary" type="button" onclick="detectEmotionNow()">
-                            <i class="fas fa-camera"></i> Detect Now
-                        </button>
-                        <button class="emotion-action-btn secondary" type="button" onclick="closeEmotionDetection()">
-                            Close
-                        </button>
-                    </div>
-                </aside>
-            </div>
+      <div class="emotion-modal-panel">
+        <div class="emotion-modal-header">
+          <div>
+            <h2>Live Emotion Detection</h2>
+            <p>
+              Allow camera access, look at the screen, and show the expression
+              you want to detect.
+            </p>
+          </div>
+          <button
+            class="emotion-close-btn"
+            type="button"
+            onclick="closeEmotionDetection()"
+          >
+            <i class="fas fa-times"></i>
+          </button>
         </div>
+
+        <div class="emotion-modal-body">
+          <section class="camera-panel">
+            <div class="camera-frame">
+              <video id="emotionVideo" autoplay playsinline muted></video>
+              <div class="camera-overlay"></div>
+            </div>
+            <p class="camera-guidance" id="cameraGuidance">
+              The detector checks your face every 2 seconds and updates the
+              emotion lines automatically.
+            </p>
+          </section>
+
+          <aside class="results-panel">
+            <div class="status-chip" id="emotionStatus">
+              <i class="fas fa-circle-notch fa-spin"></i>
+              <span>Waiting to start camera...</span>
+            </div>
+
+            <p class="dominant-emotion" id="dominantEmotion">
+              No emotion detected yet
+            </p>
+            <p class="emotion-helper" id="emotionHelper">
+              When your face is visible, the result panel will show lines for
+              happy, sad, angry and the other detected emotions.
+            </p>
+
+            <div class="emotion-lines" id="emotionLines"></div>
+
+            <div class="emotion-actions">
+              <button
+                class="emotion-action-btn primary"
+                type="button"
+                onclick="detectEmotionNow()"
+              >
+                <i class="fas fa-camera"></i> Detect Now
+              </button>
+              <button
+                class="emotion-action-btn secondary"
+                type="button"
+                onclick="closeEmotionDetection()"
+              >
+                Close
+              </button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <div class="emotion-modal" id="preferencesModal">
+      <div class="recommendation-modal-panel">
+        <div class="emotion-modal-header">
+          <div>
+            <h2>Your Music Preferences</h2>
+            <p>Help us recommend music that matches your mood and taste</p>
+          </div>
+          <button
+            class="emotion-close-btn"
+            type="button"
+            onclick="closePreferencesModal()"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="preference-section">
+          <div class="preference-label">
+            <i class="fas fa-compact-disc"></i> Which music era do you prefer?
+          </div>
+          <div class="preference-options" id="eraOptions">
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'era')"
+            >
+              Bollywood Classics
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'era')"
+            >
+              Modern Pop
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'era')"
+            >
+              90s Hits
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'era')"
+            >
+              Indie
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'era')"
+            >
+              Lofi/Chill
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'era')"
+            >
+              Classic Rock
+            </div>
+          </div>
+        </div>
+
+        <div class="preference-section">
+          <div class="preference-label">
+            <i class="fas fa-language"></i> Which language do you prefer?
+          </div>
+          <div class="preference-options" id="languageOptions">
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'language')"
+            >
+              Hindi
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'language')"
+            >
+              English
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'language')"
+            >
+              Punjabi
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'language')"
+            >
+              Tamil
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'language')"
+            >
+              Telugu
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'language')"
+            >
+              Any
+            </div>
+          </div>
+        </div>
+
+        <div class="recommendation-actions">
+          <button
+            class="recommendation-btn secondary"
+            type="button"
+            onclick="closePreferencesModal()"
+          >
+            <i class="fas fa-arrow-left"></i> Back
+          </button>
+          <button
+            class="recommendation-btn primary"
+            type="button"
+            onclick="savePreferencesAndRecommend()"
+          >
+            <i class="fas fa-check"></i> Confirm & Get Recommendations
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="emotion-modal" id="recommendationModal">
+      <div class="recommendation-modal-panel">
+        <div class="recommendation-header">
+          <button
+            class="emotion-close-btn"
+            style="position: absolute; top: 20px; right: 20px"
+            type="button"
+            onclick="closeRecommendation()"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+
+          <div class="scan-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="scan-counter" id="scanCounter">
+              Scans completed: 0/5
+            </div>
+          </div>
+
+          <h2 class="recommendation-title">
+            Hey <span id="recommendationUsername">User</span>!
+          </h2>
+          <div class="recommendation-scan-count">
+            <i class="fas fa-analytics"></i>
+            <span id="scanStats">Based on your mood analysis</span>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0">
+          <div class="mood-icon" id="moodEmoji">😊</div>
+          <h3 style="color: white; font-size: 2rem; margin: 0">
+            Your current mood is
+          </h3>
+          <p
+            style="
+              color: rgba(255, 255, 255, 0.8);
+              font-size: 1.3rem;
+              margin-top: 10px;
+            "
+          >
+            <strong
+              id="detectedMood"
+              style="text-transform: capitalize; font-size: 1.5rem"
+              >Happy</strong
+            >
+          </p>
+        </div>
+
+        <p class="recommendation-subtitle">
+          I'd like to recommend you songs that match your current mood and
+          preferences! 🎵
+        </p>
+
+        <div class="recommendation-actions">
+          <button
+            class="recommendation-btn secondary"
+            type="button"
+            onclick="setupPreferences()"
+          >
+            <i class="fas fa-sliders-h"></i> Set Preferences
+          </button>
+          <button
+            class="recommendation-btn primary"
+            type="button"
+            onclick="goToMusicRecommendation()"
+          >
+            <i class="fas fa-music"></i> Find Music
+          </button>
+        </div>
+      </div>
     </div>
 
     <canvas id="emotionCaptureCanvas" class="emotion-hidden-canvas"></canvas>
 
     <div class="emotion-modal" id="historyModal">
-        <div class="history-modal-panel">
-            <div class="emotion-modal-header">
-                <div>
-                    <h2>Emotion History</h2>
-                    <p>Track how happy, sad, and angry changed across your saved detections.</p>
-                </div>
-                <button class="emotion-close-btn" type="button" onclick="closeEmotionHistory()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-
-            <div class="history-modal-body">
-                <section class="history-chart-panel">
-                    <div class="status-chip" id="historyStatus">
-                        <i class="fas fa-circle-notch fa-spin"></i>
-                        <span>Loading emotion history...</span>
-                    </div>
-
-                    <div class="history-summary" id="historySummary"></div>
-                    <div class="history-chart" id="historyChart"></div>
-                    <div class="history-legend" id="historyLegend"></div>
-                </section>
-
-                <aside class="history-list-panel">
-                    <h3>Recent Entries</h3>
-                    <p class="emotion-helper">Each saved detection is listed with its dominant emotion and timestamp.</p>
-                    <div class="history-list" id="historyList"></div>
-                </aside>
-            </div>
+      <div class="history-modal-panel">
+        <div class="emotion-modal-header">
+          <div>
+            <h2>Emotion History</h2>
+            <p>
+              Track how happy, sad, and angry changed across your saved
+              detections.
+            </p>
+          </div>
+          <button
+            class="emotion-close-btn"
+            type="button"
+            onclick="closeEmotionHistory()"
+          >
+            <i class="fas fa-times"></i>
+          </button>
         </div>
+
+        <div class="history-modal-body">
+          <section class="history-chart-panel">
+            <div class="status-chip" id="historyStatus">
+              <i class="fas fa-circle-notch fa-spin"></i>
+              <span>Loading emotion history...</span>
+            </div>
+
+            <div class="history-summary" id="historySummary"></div>
+            <div class="history-chart" id="historyChart"></div>
+            <div class="history-legend" id="historyLegend"></div>
+          </section>
+
+          <aside class="history-list-panel">
+            <h3>Recent Entries</h3>
+            <p class="emotion-helper">
+              Each saved detection is listed with its dominant emotion and
+              timestamp.
+            </p>
+            <div class="history-list" id="historyList"></div>
+          </aside>
+        </div>
+      </div>
     </div>
 
     <script src="face-auth-menu.js" defer></script>
     <script>
-        const API_URL = 'http://localhost:3000/api';
-        const emotionModal = document.getElementById('emotionModal');
-        const historyModal = document.getElementById('historyModal');
-        const emotionVideo = document.getElementById('emotionVideo');
-        const emotionCanvas = document.getElementById('emotionCaptureCanvas');
-        const emotionStatus = document.getElementById('emotionStatus');
-        const dominantEmotionEl = document.getElementById('dominantEmotion');
-        const emotionHelperEl = document.getElementById('emotionHelper');
-        const emotionLinesEl = document.getElementById('emotionLines');
-        const cameraGuidanceEl = document.getElementById('cameraGuidance');
-        const historyStatusEl = document.getElementById('historyStatus');
-        const historySummaryEl = document.getElementById('historySummary');
-        const historyChartEl = document.getElementById('historyChart');
-        const historyLegendEl = document.getElementById('historyLegend');
-        const historyListEl = document.getElementById('historyList');
+      const API_URL = "http://localhost:3000/api";
+      const emotionModal = document.getElementById("emotionModal");
+      const historyModal = document.getElementById("historyModal");
+      const recommendationModal = document.getElementById(
+        "recommendationModal",
+      );
+      const preferencesModal = document.getElementById("preferencesModal");
+      const emotionVideo = document.getElementById("emotionVideo");
+      const emotionCanvas = document.getElementById("emotionCaptureCanvas");
+      const emotionStatus = document.getElementById("emotionStatus");
+      const dominantEmotionEl = document.getElementById("dominantEmotion");
+      const emotionHelperEl = document.getElementById("emotionHelper");
+      const emotionLinesEl = document.getElementById("emotionLines");
+      const cameraGuidanceEl = document.getElementById("cameraGuidance");
+      const historyStatusEl = document.getElementById("historyStatus");
+      const historySummaryEl = document.getElementById("historySummary");
+      const historyChartEl = document.getElementById("historyChart");
+      const historyLegendEl = document.getElementById("historyLegend");
+      const historyListEl = document.getElementById("historyList");
 
-        let emotionStream = null;
-        let detectionTimer = null;
-        let detectionInFlight = false;
-        let emotionHistory = [];
-        let lastSuccessfulEmotion = null;
-        let activeDetectionController = null;
-        let faceApiReady = false;
-        let faceApiLoading = null;
-        let lastFaceBox = null;
-        const historyLineConfig = [
-            { key: 'happy', label: 'Happy', color: '#22c55e' },
-            { key: 'sad', label: 'Sad', color: '#60a5fa' },
-            { key: 'angry', label: 'Angry', color: '#f97316' }
-        ];
+      let emotionStream = null;
+      let detectionTimer = null;
+      let detectionInFlight = false;
+      let emotionHistory = [];
+      let lastSuccessfulEmotion = null;
+      let activeDetectionController = null;
+      let faceApiReady = false;
+      let faceApiLoading = null;
+      let lastFaceBox = null;
 
-        // Navbar functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const hamburger = document.getElementById('navbarToggle');
-            const dropdown = document.getElementById('navbarDropdown');
-            const navbar = document.getElementById('musicera-navbar');
-            
-            hamburger.addEventListener('click', () => {
-                hamburger.classList.toggle('active');
-                dropdown.classList.toggle('active');
-            });
-            
-            // Close dropdown on outside click
-            document.addEventListener('click', (e) => {
-                if (!navbar.contains(e.target)) {
-                    hamburger.classList.remove('active');
-                    dropdown.classList.remove('active');
-                }
-            });
+      // Emotion tracking for recommendations
+      let scanCount = 0;
+      let emotionScansList = [];
+      let averageEmotion = null;
+      let selectedEras = [];
+      let selectedLanguages = [];
+      const MAX_SCANS_FOR_RECOMMENDATION = 5;
+      const MIN_SCANS_FOR_RECOMMENDATION = 4;
 
-            loadEmotionFaceApi();
+      // Mood emoji mapping
+      const moodEmojiMap = {
+        happy: "😊",
+        sad: "😢",
+        angry: "😠",
+        fear: "😨",
+        disgust: "🤢",
+        surprise: "😲",
+        neutral: "😐",
+      };
+
+      const validMoodSet = new Set([
+        "happy",
+        "sad",
+        "angry",
+        "fear",
+        "disgust",
+        "surprise",
+        "neutral",
+      ]);
+
+      function normalizeValidMood(value) {
+        const mood = String(value || "")
+          .trim()
+          .toLowerCase();
+        return validMoodSet.has(mood) ? mood : "";
+      }
+
+      const LATEST_MOOD_SESSION_KEY = "latestDetectedMoodSnapshot";
+
+      function persistLatestMoodSnapshot(mood) {
+        const normalizedMood = normalizeValidMood(mood);
+        if (!normalizedMood) {
+          return;
+        }
+
+        sessionStorage.setItem(
+          LATEST_MOOD_SESSION_KEY,
+          JSON.stringify({
+            mood: normalizedMood,
+            detectedAt: Date.now(),
+          }),
+        );
+      }
+
+      const historyLineConfig = [
+        { key: "happy", label: "Happy", color: "#22c55e" },
+        { key: "sad", label: "Sad", color: "#60a5fa" },
+        { key: "angry", label: "Angry", color: "#f97316" },
+      ];
+
+      // Navbar functionality
+      document.addEventListener("DOMContentLoaded", function () {
+        const hamburger = document.getElementById("navbarToggle");
+        const dropdown = document.getElementById("navbarDropdown");
+        const navbar = document.getElementById("musicera-navbar");
+
+        hamburger.addEventListener("click", () => {
+          hamburger.classList.toggle("active");
+          dropdown.classList.toggle("active");
         });
 
-        // Auth Guard & user data
-        const userData = JSON.parse(sessionStorage.getItem('userData') || '{}');
-        if (!userData.name) {
-            window.location.href = 'index.html';
+        // Close dropdown on outside click
+        document.addEventListener("click", (e) => {
+          if (!navbar.contains(e.target)) {
+            hamburger.classList.remove("active");
+            dropdown.classList.remove("active");
+          }
+        });
+
+        loadEmotionFaceApi();
+      });
+
+      // Auth Guard & user data
+      const userData = JSON.parse(sessionStorage.getItem("userData") || "{}");
+      if (!userData.name) {
+        window.location.href = "index.html";
+      }
+
+      // Populate navbar user info
+      document.getElementById("navbarUserName").textContent =
+        userData.name || "User";
+      document.getElementById("navbarUserEmail").textContent =
+        userData.email || "";
+      if (userData.hasFace) {
+        document.getElementById("navbarFaceBadge").style.display =
+          "inline-flex";
+      }
+
+      // Navigation functions
+      async function goToEmotionDetection() {
+        emotionModal.classList.add("active");
+        renderEmotionLines([]);
+        setEmotionStatus("info", "Opening camera...");
+        dominantEmotionEl.textContent = "Preparing camera";
+        emotionHelperEl.textContent =
+          "Face the camera and keep your expression steady for a moment.";
+
+        try {
+          emotionStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "user",
+              width: { ideal: 640, max: 640 },
+              height: { ideal: 480, max: 480 },
+              frameRate: { ideal: 15, max: 24 },
+            },
+            audio: false,
+          });
+
+          emotionVideo.srcObject = emotionStream;
+          cameraGuidanceEl.textContent =
+            "Keep your face near the center and hold the expression for a moment. Detection updates automatically.";
+          setEmotionStatus("success", "Camera is live. Detecting emotion...");
+
+          await emotionVideo.play();
+          await detectEmotionNow();
+        } catch (error) {
+          console.error("Camera access error:", error);
+          setEmotionStatus(
+            "error",
+            "Camera access failed. Please allow permission and try again.",
+          );
+          dominantEmotionEl.textContent = "Camera unavailable";
+          emotionHelperEl.textContent =
+            "The browser blocked camera access, so no emotion can be detected yet.";
+        }
+      }
+
+      function closeEmotionDetection() {
+        emotionModal.classList.remove("active");
+
+        if (detectionTimer) {
+          window.clearTimeout(detectionTimer);
+          detectionTimer = null;
         }
 
-        // Populate navbar user info
-        document.getElementById('navbarUserName').textContent = userData.name || 'User';
-        document.getElementById('navbarUserEmail').textContent = userData.email || '';
-        if (userData.hasFace) {
-            document.getElementById('navbarFaceBadge').style.display = 'inline-flex';
+        if (emotionStream) {
+          emotionStream.getTracks().forEach((track) => track.stop());
+          emotionStream = null;
         }
 
-        // Navigation functions
-        async function goToEmotionDetection() {
-            emotionModal.classList.add('active');
-            renderEmotionLines([]);
-            setEmotionStatus('info', 'Opening camera...');
-            dominantEmotionEl.textContent = 'Preparing camera';
-            emotionHelperEl.textContent = 'Face the camera and keep your expression steady for a moment.';
+        if (activeDetectionController) {
+          activeDetectionController.abort();
+          activeDetectionController = null;
+        }
 
+        emotionVideo.srcObject = null;
+        detectionInFlight = false;
+        emotionHistory = [];
+        lastSuccessfulEmotion = null;
+        lastFaceBox = null;
+        setEmotionStatus("info", "Waiting to start camera...");
+      }
+
+      async function detectEmotionNow() {
+        if (
+          detectionInFlight ||
+          !emotionStream ||
+          emotionVideo.readyState < 2
+        ) {
+          return;
+        }
+
+        detectionInFlight = true;
+        activeDetectionController = new AbortController();
+        const timeoutId = window.setTimeout(() => {
+          if (activeDetectionController) {
+            activeDetectionController.abort();
+          }
+        }, 2500);
+        setEmotionStatus("info", "Analyzing your facial expression...");
+
+        try {
+          const result =
+            (await detectEmotionInBrowser()) || (await detectEmotionOnServer());
+
+          const smoothedResult = smoothEmotionResult(result.emotions || []);
+          const dominantEmotion = formatEmotionLabel(
+            smoothedResult.dominantEmotion ||
+              result.dominantEmotion ||
+              "unknown",
+          );
+          lastSuccessfulEmotion = dominantEmotion;
+          dominantEmotionEl.textContent = dominantEmotion;
+          emotionHelperEl.textContent = `Current mood detected from your face: ${dominantEmotion}. The lines below show the confidence for each expression.`;
+          renderEmotionLines(smoothedResult.emotions);
+          setEmotionStatus(
+            "success",
+            faceApiReady
+              ? "Expression detected live in browser."
+              : "Expression detected successfully.",
+          );
+          saveEmotionHistory(smoothedResult).catch((saveError) => {
+            console.warn("Emotion history save failed:", saveError);
+          });
+        } catch (error) {
+          console.error("Emotion detection request failed:", error);
+          const message =
+            error.name === "AbortError"
+              ? "Detection took too long. Retrying..."
+              : error.message || "Emotion detection failed.";
+          setEmotionStatus("error", message);
+          dominantEmotionEl.textContent =
+            lastSuccessfulEmotion || "Detection failed";
+          emotionHelperEl.textContent = message;
+        } finally {
+          window.clearTimeout(timeoutId);
+          activeDetectionController = null;
+          detectionInFlight = false;
+          scheduleNextDetection();
+        }
+      }
+
+      async function loadEmotionFaceApi() {
+        if (faceApiLoading || faceApiReady || typeof faceapi === "undefined") {
+          return faceApiLoading;
+        }
+
+        faceApiLoading = (async () => {
+          const modelUrls = [
+            "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model",
+            "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models",
+          ];
+
+          for (const modelUrl of modelUrls) {
             try {
-                emotionStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'user',
-                        width: { ideal: 640, max: 640 },
-                        height: { ideal: 480, max: 480 },
-                        frameRate: { ideal: 15, max: 24 }
-                    },
-                    audio: false
-                });
-
-                emotionVideo.srcObject = emotionStream;
-                cameraGuidanceEl.textContent = 'Keep your face near the center and hold the expression for a moment. Detection updates automatically.';
-                setEmotionStatus('success', 'Camera is live. Detecting emotion...');
-
-                await emotionVideo.play();
-                await detectEmotionNow();
+              await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+                faceapi.nets.faceExpressionNet.loadFromUri(modelUrl),
+              ]);
+              faceApiReady = true;
+              return;
             } catch (error) {
-                console.error('Camera access error:', error);
-                setEmotionStatus('error', 'Camera access failed. Please allow permission and try again.');
-                dominantEmotionEl.textContent = 'Camera unavailable';
-                emotionHelperEl.textContent = 'The browser blocked camera access, so no emotion can be detected yet.';
+              console.warn("Face API model load failed:", modelUrl, error);
             }
+          }
+        })();
+
+        return faceApiLoading;
+      }
+
+      async function detectEmotionInBrowser() {
+        await loadEmotionFaceApi();
+
+        if (!faceApiReady || typeof faceapi === "undefined") {
+          return null;
         }
 
-        function closeEmotionDetection() {
-            emotionModal.classList.remove('active');
+        const detection = await faceapi
+          .detectSingleFace(
+            emotionVideo,
+            new faceapi.TinyFaceDetectorOptions({
+              inputSize: 224,
+              scoreThreshold: 0.45,
+            }),
+          )
+          .withFaceExpressions();
 
-            if (detectionTimer) {
-                window.clearTimeout(detectionTimer);
-                detectionTimer = null;
-            }
-
-            if (emotionStream) {
-                emotionStream.getTracks().forEach((track) => track.stop());
-                emotionStream = null;
-            }
-
-            if (activeDetectionController) {
-                activeDetectionController.abort();
-                activeDetectionController = null;
-            }
-
-            emotionVideo.srcObject = null;
-            detectionInFlight = false;
-            emotionHistory = [];
-            lastSuccessfulEmotion = null;
-            lastFaceBox = null;
-            setEmotionStatus('info', 'Waiting to start camera...');
+        if (!detection || !detection.expressions) {
+          lastFaceBox = null;
+          throw new Error(
+            "No clear face detected. Center your face and try again.",
+          );
         }
 
-        async function detectEmotionNow() {
-            if (detectionInFlight || !emotionStream || emotionVideo.readyState < 2) {
-                return;
-            }
+        lastFaceBox = detection.detection.box;
+        return normalizeBrowserExpressions(detection.expressions);
+      }
 
-            detectionInFlight = true;
-            activeDetectionController = new AbortController();
-            const timeoutId = window.setTimeout(() => {
-                if (activeDetectionController) {
-                    activeDetectionController.abort();
-                }
-            }, 2500);
-            setEmotionStatus('info', 'Analyzing your facial expression...');
+      async function detectEmotionOnServer() {
+        const image = captureFrame();
+        const response = await fetch(`${API_URL}/emotion-detect`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ image }),
+          signal: activeDetectionController.signal,
+        });
 
-            try {
-                const result = (await detectEmotionInBrowser()) || (await detectEmotionOnServer());
+        const result = await response.json();
 
-                const smoothedResult = smoothEmotionResult(result.emotions || []);
-                const dominantEmotion = formatEmotionLabel(smoothedResult.dominantEmotion || result.dominantEmotion || 'unknown');
-                lastSuccessfulEmotion = dominantEmotion;
-                dominantEmotionEl.textContent = dominantEmotion;
-                emotionHelperEl.textContent = `Current mood detected from your face: ${dominantEmotion}. The lines below show the confidence for each expression.`;
-                renderEmotionLines(smoothedResult.emotions);
-                setEmotionStatus('success', faceApiReady ? 'Expression detected live in browser.' : 'Expression detected successfully.');
-                saveEmotionHistory(smoothedResult).catch((saveError) => {
-                    console.warn('Emotion history save failed:', saveError);
-                });
-            } catch (error) {
-                console.error('Emotion detection request failed:', error);
-                const message = error.name === 'AbortError'
-                    ? 'Detection took too long. Retrying...'
-                    : (error.message || 'Emotion detection failed.');
-                setEmotionStatus('error', message);
-                dominantEmotionEl.textContent = lastSuccessfulEmotion || 'Detection failed';
-                emotionHelperEl.textContent = message;
-            } finally {
-                window.clearTimeout(timeoutId);
-                activeDetectionController = null;
-                detectionInFlight = false;
-                scheduleNextDetection();
-            }
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.error || result.message || "Emotion detection failed",
+          );
         }
 
-        async function loadEmotionFaceApi() {
-            if (faceApiLoading || faceApiReady || typeof faceapi === 'undefined') {
-                return faceApiLoading;
-            }
+        return result;
+      }
 
-            faceApiLoading = (async () => {
-                const modelUrls = [
-                    'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model',
-                    'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models'
-                ];
-
-                for (const modelUrl of modelUrls) {
-                    try {
-                        await Promise.all([
-                            faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
-                            faceapi.nets.faceExpressionNet.loadFromUri(modelUrl)
-                        ]);
-                        faceApiReady = true;
-                        return;
-                    } catch (error) {
-                        console.warn('Face API model load failed:', modelUrl, error);
-                    }
-                }
-            })();
-
-            return faceApiLoading;
+      function scheduleNextDetection(delay = 2000) {
+        if (!emotionStream) {
+          return;
         }
 
-        async function detectEmotionInBrowser() {
-            await loadEmotionFaceApi();
-
-            if (!faceApiReady || typeof faceapi === 'undefined') {
-                return null;
-            }
-
-            const detection = await faceapi
-                .detectSingleFace(
-                    emotionVideo,
-                    new faceapi.TinyFaceDetectorOptions({
-                        inputSize: 224,
-                        scoreThreshold: 0.45
-                    })
-                )
-                .withFaceExpressions();
-
-            if (!detection || !detection.expressions) {
-                lastFaceBox = null;
-                throw new Error('No clear face detected. Center your face and try again.');
-            }
-
-            lastFaceBox = detection.detection.box;
-            return normalizeBrowserExpressions(detection.expressions);
+        if (detectionTimer) {
+          window.clearTimeout(detectionTimer);
         }
 
-        async function detectEmotionOnServer() {
-            const image = captureFrame();
-            const response = await fetch(`${API_URL}/emotion-detect`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ image }),
-                signal: activeDetectionController.signal
-            });
+        detectionTimer = window.setTimeout(() => {
+          detectionTimer = null;
+          detectEmotionNow();
+        }, delay);
+      }
 
-            const result = await response.json();
+      async function goToEmotionHistory() {
+        historyModal.classList.add("active");
+        historyChartEl.innerHTML = "";
+        historyLegendEl.innerHTML = "";
+        historySummaryEl.innerHTML = "";
+        historyListEl.innerHTML = "";
+        setHistoryStatus("info", "Loading emotion history...");
 
-            if (!response.ok || !result.success) {
-                throw new Error(result.error || result.message || 'Emotion detection failed');
-            }
+        try {
+          const history = await fetchEmotionHistory();
+          renderHistorySummary(history);
+          renderHistoryChart(history);
+          renderHistoryList(history);
+          setHistoryStatus(
+            "success",
+            history.length
+              ? "Emotion history loaded."
+              : "No saved emotion history yet.",
+          );
+        } catch (error) {
+          console.error("Emotion history load failed:", error);
+          setHistoryStatus(
+            "error",
+            error.message || "Failed to load emotion history.",
+          );
+          historyChartEl.innerHTML = `<div class="history-chart-empty">Unable to load your emotion history right now.</div>`;
+        }
+      }
 
-            return result;
+      function closeEmotionHistory() {
+        historyModal.classList.remove("active");
+      }
+
+      function goToDashboard() {
+        sessionStorage.setItem("fromPage", "emotion.html");
+        const recentMood = normalizeValidMood(
+          averageEmotion || emotionScansList[emotionScansList.length - 1],
+        );
+        if (recentMood) {
+          persistLatestMoodSnapshot(recentMood);
+          window.location.href = `dashboard.html?mood=${encodeURIComponent(recentMood)}`;
+          return;
         }
 
-        function scheduleNextDetection(delay = 2000) {
-            if (!emotionStream) {
-                return;
-            }
+        window.location.href = "dashboard.html";
+      }
 
-            if (detectionTimer) {
-                window.clearTimeout(detectionTimer);
-            }
+      window.logout = function () {
+        sessionStorage.removeItem("userData");
+        window.location.href = "index.html";
+      };
 
-            detectionTimer = window.setTimeout(() => {
-                detectionTimer = null;
-                detectEmotionNow();
-            }, delay);
-        }
+      function captureFrame() {
+        const sourceWidth = emotionVideo.videoWidth || 640;
+        const sourceHeight = emotionVideo.videoHeight || 480;
+        const fallbackCropWidth = Math.round(sourceWidth * 0.62);
+        const fallbackCropHeight = Math.round(sourceHeight * 0.82);
+        const fallbackSx = Math.max(
+          0,
+          Math.round((sourceWidth - fallbackCropWidth) / 2),
+        );
+        const fallbackSy = Math.max(
+          0,
+          Math.round((sourceHeight - fallbackCropHeight) / 2) -
+            Math.round(sourceHeight * 0.04),
+        );
+        const detectedBox = lastFaceBox;
+        const cropWidth = detectedBox
+          ? Math.min(sourceWidth, Math.round(detectedBox.width * 1.9))
+          : fallbackCropWidth;
+        const cropHeight = detectedBox
+          ? Math.min(sourceHeight, Math.round(detectedBox.height * 2.2))
+          : fallbackCropHeight;
+        const sx = detectedBox
+          ? Math.max(
+              0,
+              Math.round(detectedBox.x + detectedBox.width / 2 - cropWidth / 2),
+            )
+          : fallbackSx;
+        const sy = detectedBox
+          ? Math.max(
+              0,
+              Math.round(
+                detectedBox.y + detectedBox.height / 2 - cropHeight * 0.44,
+              ),
+            )
+          : fallbackSy;
+        const targetWidth = 256;
+        const targetHeight = 320;
+        emotionCanvas.width = targetWidth;
+        emotionCanvas.height = targetHeight;
 
-        async function goToEmotionHistory() {
-            historyModal.classList.add('active');
-            historyChartEl.innerHTML = '';
-            historyLegendEl.innerHTML = '';
-            historySummaryEl.innerHTML = '';
-            historyListEl.innerHTML = '';
-            setHistoryStatus('info', 'Loading emotion history...');
+        const context = emotionCanvas.getContext("2d");
+        context.drawImage(
+          emotionVideo,
+          sx,
+          sy,
+          cropWidth,
+          cropHeight,
+          0,
+          0,
+          targetWidth,
+          targetHeight,
+        );
 
-            try {
-                const history = await fetchEmotionHistory();
-                renderHistorySummary(history);
-                renderHistoryChart(history);
-                renderHistoryList(history);
-                setHistoryStatus('success', history.length ? 'Emotion history loaded.' : 'No saved emotion history yet.');
-            } catch (error) {
-                console.error('Emotion history load failed:', error);
-                setHistoryStatus('error', error.message || 'Failed to load emotion history.');
-                historyChartEl.innerHTML = `<div class="history-chart-empty">Unable to load your emotion history right now.</div>`;
-            }
-        }
+        return emotionCanvas.toDataURL("image/jpeg", 0.72);
+      }
 
-        function closeEmotionHistory() {
-            historyModal.classList.remove('active');
-        }
+      function normalizeBrowserExpressions(expressions) {
+        const mapped = [
+          { label: "angry", score: Number(expressions.angry || 0) * 100 },
+          { label: "disgust", score: Number(expressions.disgusted || 0) * 100 },
+          { label: "fear", score: Number(expressions.fearful || 0) * 100 },
+          { label: "happy", score: Number(expressions.happy || 0) * 100 },
+          { label: "neutral", score: Number(expressions.neutral || 0) * 100 },
+          { label: "sad", score: Number(expressions.sad || 0) * 100 },
+          {
+            label: "surprise",
+            score: Number(expressions.surprised || 0) * 100,
+          },
+        ]
+          .map((emotion) => ({
+            label: emotion.label,
+            score: Math.round(emotion.score * 100) / 100,
+          }))
+          .sort((a, b) => b.score - a.score);
 
-        function goToDashboard() {
-            sessionStorage.setItem('fromPage', 'emotion.html');
-            window.location.href = 'dashboard.html';
-        }
-
-        window.logout = function() {
-            sessionStorage.removeItem('userData');
-            window.location.href = 'index.html';
+        return {
+          dominantEmotion: mapped[0]?.label || null,
+          emotions: mapped,
         };
+      }
 
-        function captureFrame() {
-            const sourceWidth = emotionVideo.videoWidth || 640;
-            const sourceHeight = emotionVideo.videoHeight || 480;
-            const fallbackCropWidth = Math.round(sourceWidth * 0.62);
-            const fallbackCropHeight = Math.round(sourceHeight * 0.82);
-            const fallbackSx = Math.max(0, Math.round((sourceWidth - fallbackCropWidth) / 2));
-            const fallbackSy = Math.max(0, Math.round((sourceHeight - fallbackCropHeight) / 2) - Math.round(sourceHeight * 0.04));
-            const detectedBox = lastFaceBox;
-            const cropWidth = detectedBox
-                ? Math.min(sourceWidth, Math.round(detectedBox.width * 1.9))
-                : fallbackCropWidth;
-            const cropHeight = detectedBox
-                ? Math.min(sourceHeight, Math.round(detectedBox.height * 2.2))
-                : fallbackCropHeight;
-            const sx = detectedBox
-                ? Math.max(0, Math.round(detectedBox.x + (detectedBox.width / 2) - (cropWidth / 2)))
-                : fallbackSx;
-            const sy = detectedBox
-                ? Math.max(0, Math.round(detectedBox.y + (detectedBox.height / 2) - (cropHeight * 0.44)))
-                : fallbackSy;
-            const targetWidth = 256;
-            const targetHeight = 320;
-            emotionCanvas.width = targetWidth;
-            emotionCanvas.height = targetHeight;
+      function smoothEmotionResult(emotions) {
+        emotionHistory.push(emotions);
+        if (emotionHistory.length > 2) {
+          emotionHistory.shift();
+        }
 
-            const context = emotionCanvas.getContext('2d');
-            context.drawImage(
-                emotionVideo,
-                sx,
-                sy,
-                cropWidth,
-                cropHeight,
-                0,
-                0,
-                targetWidth,
-                targetHeight
+        const scoreMap = new Map();
+        emotionHistory.forEach((frameEmotions, index) => {
+          const weight = index === emotionHistory.length - 1 ? 0.65 : 0.35;
+          frameEmotions.forEach((emotion) => {
+            const label = String(emotion.label || "");
+            scoreMap.set(
+              label,
+              (scoreMap.get(label) || 0) + Number(emotion.score || 0) * weight,
             );
+          });
+        });
 
-            return emotionCanvas.toDataURL('image/jpeg', 0.72);
-        }
+        const averagedEmotions = Array.from(scoreMap.entries())
+          .map(([label, total]) => ({
+            label,
+            score: total,
+          }))
+          .sort((a, b) => b.score - a.score);
 
-        function normalizeBrowserExpressions(expressions) {
-            const mapped = [
-                { label: 'angry', score: Number(expressions.angry || 0) * 100 },
-                { label: 'disgust', score: Number(expressions.disgusted || 0) * 100 },
-                { label: 'fear', score: Number(expressions.fearful || 0) * 100 },
-                { label: 'happy', score: Number(expressions.happy || 0) * 100 },
-                { label: 'neutral', score: Number(expressions.neutral || 0) * 100 },
-                { label: 'sad', score: Number(expressions.sad || 0) * 100 },
-                { label: 'surprise', score: Number(expressions.surprised || 0) * 100 }
-            ]
-                .map((emotion) => ({
-                    label: emotion.label,
-                    score: Math.round(emotion.score * 100) / 100
-                }))
-                .sort((a, b) => b.score - a.score);
+        return {
+          dominantEmotion: averagedEmotions[0]?.label || null,
+          emotions: averagedEmotions,
+        };
+      }
 
-            return {
-                dominantEmotion: mapped[0]?.label || null,
-                emotions: mapped
-            };
-        }
-
-        function smoothEmotionResult(emotions) {
-            emotionHistory.push(emotions);
-            if (emotionHistory.length > 2) {
-                emotionHistory.shift();
-            }
-
-            const scoreMap = new Map();
-            emotionHistory.forEach((frameEmotions, index) => {
-                const weight = index === emotionHistory.length - 1 ? 0.65 : 0.35;
-                frameEmotions.forEach((emotion) => {
-                    const label = String(emotion.label || '');
-                    scoreMap.set(label, (scoreMap.get(label) || 0) + (Number(emotion.score || 0) * weight));
-                });
-            });
-
-            const averagedEmotions = Array.from(scoreMap.entries())
-                .map(([label, total]) => ({
-                    label,
-                    score: total
-                }))
-                .sort((a, b) => b.score - a.score);
-
-            return {
-                dominantEmotion: averagedEmotions[0]?.label || null,
-                emotions: averagedEmotions
-            };
-        }
-
-        function renderEmotionLines(emotions) {
-            if (!emotions.length) {
-                emotionLinesEl.innerHTML = `
+      function renderEmotionLines(emotions) {
+        if (!emotions.length) {
+          emotionLinesEl.innerHTML = `
                     <div class="emotion-line">
                         <div class="emotion-line-header">
                             <strong>Waiting for data</strong>
@@ -1092,12 +1645,13 @@
                         <div class="emotion-bar"><span style="width: 0%"></span></div>
                     </div>
                 `;
-                return;
-            }
+          return;
+        }
 
-            emotionLinesEl.innerHTML = emotions
-                .slice(0, 5)
-                .map((emotion) => `
+        emotionLinesEl.innerHTML = emotions
+          .slice(0, 5)
+          .map(
+            (emotion) => `
                     <div class="emotion-line">
                         <div class="emotion-line-header">
                             <strong>${formatEmotionLabel(emotion.label)}</strong>
@@ -1107,79 +1661,275 @@
                             <span style="width: ${Math.max(0, Math.min(100, Number(emotion.score)))}%"></span>
                         </div>
                     </div>
-                `)
-                .join('');
+                `,
+          )
+          .join("");
+      }
+
+      async function saveEmotionHistory(result) {
+        if (!userData.email || !result?.dominantEmotion) {
+          return;
         }
 
-        async function saveEmotionHistory(result) {
-            if (!userData.email || !result?.dominantEmotion) {
-                return;
-            }
+        const response = await fetch(`${API_URL}/emotion-history`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: userData.id,
+            email: userData.email,
+            dominantEmotion: result.dominantEmotion,
+            emotions: result.emotions || [],
+            detectedAt: new Date().toISOString(),
+          }),
+        });
 
-            const response = await fetch(`${API_URL}/emotion-history`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    userId: userData.id,
-                    email: userData.email,
-                    dominantEmotion: result.dominantEmotion,
-                    emotions: result.emotions || [],
-                    detectedAt: new Date().toISOString()
-                })
-            });
-
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}));
-                throw new Error(payload.message || 'Failed to save emotion history');
-            }
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.message || "Failed to save emotion history");
         }
 
-        async function fetchEmotionHistory() {
-            const query = new URLSearchParams();
-            if (userData.id) {
-                query.set('userId', userData.id);
-            }
-            if (userData.email) {
-                query.set('email', userData.email);
-            }
-            query.set('limit', '90');
+        // Track emotion scan for recommendation
+        scanCount++;
+        const normalizedDetectedMood = normalizeValidMood(
+          result.dominantEmotion,
+        );
+        emotionScansList.push(normalizedDetectedMood || result.dominantEmotion);
 
-            const response = await fetch(`${API_URL}/emotion-history?${query.toString()}`);
-            const payload = await response.json();
-
-            if (!response.ok || !payload.success) {
-                throw new Error(payload.message || 'Failed to fetch emotion history');
-            }
-
-            return (payload.history || []).map((entry) => ({
-                id: entry.id,
-                dominantEmotion: String(entry.dominant_emotion || '').toLowerCase(),
-                emotionScores: entry.emotion_scores || {},
-                detectedAt: entry.detected_at
-            }));
+        if (normalizedDetectedMood) {
+          persistLatestMoodSnapshot(normalizedDetectedMood);
         }
 
-        function renderHistorySummary(history) {
-            if (!history.length) {
-                historySummaryEl.innerHTML = `
+        // Update scan progress UI
+        updateScanProgress();
+
+        // Check if we have enough scans for recommendation
+        if (
+          scanCount >= MIN_SCANS_FOR_RECOMMENDATION &&
+          scanCount <= MAX_SCANS_FOR_RECOMMENDATION
+        ) {
+          // Automatically show recommendation after 4 scans
+          if (scanCount === MIN_SCANS_FOR_RECOMMENDATION) {
+            setTimeout(() => {
+              closeEmotionDetection();
+              showRecommendationModal();
+            }, 1000);
+          }
+        }
+      }
+
+      function updateScanProgress() {
+        const progressPercent = Math.min(
+          100,
+          (scanCount / MAX_SCANS_FOR_RECOMMENDATION) * 100,
+        );
+        const progressFill = document.getElementById("progressFill");
+        const scanCounter = document.getElementById("scanCounter");
+
+        if (progressFill) {
+          progressFill.style.width = progressPercent + "%";
+        }
+        if (scanCounter) {
+          scanCounter.textContent = `Scans completed: ${scanCount}/${MAX_SCANS_FOR_RECOMMENDATION}`;
+        }
+      }
+
+      async function calculateAverageEmotion() {
+        try {
+          const response = await fetch(`${API_URL}/emotion/average`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: userData.id,
+              email: userData.email,
+              recentScans: emotionScansList.slice(-5),
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to calculate average emotion");
+          }
+
+          const payload = await response.json();
+          if (payload.success) {
+            averageEmotion = normalizeValidMood(payload.averageEmotion);
+            return payload;
+          }
+        } catch (error) {
+          console.error("Error calculating average emotion:", error);
+        }
+        return null;
+      }
+
+      async function showRecommendationModal() {
+        // Calculate average emotion if not already done
+        if (!averageEmotion) {
+          await calculateAverageEmotion();
+        }
+
+        // Set recommendation modal content
+        if (averageEmotion) {
+          document.getElementById("recommendationUsername").textContent =
+            userData.name || "User";
+          document.getElementById("detectedMood").textContent = averageEmotion;
+          document.getElementById("moodEmoji").textContent =
+            moodEmojiMap[averageEmotion] || "😊";
+          document.getElementById("scanStats").textContent =
+            `Based on your ${scanCount} mood scans`;
+
+          // Show the modal
+          recommendationModal.classList.add("active");
+        }
+      }
+
+      function setupPreferences() {
+        preferencesModal.classList.add("active");
+      }
+
+      function closePreferencesModal() {
+        preferencesModal.classList.remove("active");
+      }
+
+      function togglePreference(element, type) {
+        element.classList.toggle("selected");
+
+        const text = element.textContent.trim();
+        if (type === "era") {
+          if (element.classList.contains("selected")) {
+            selectedEras.push(text);
+          } else {
+            selectedEras = selectedEras.filter((e) => e !== text);
+          }
+        } else if (type === "language") {
+          if (element.classList.contains("selected")) {
+            selectedLanguages.push(text);
+          } else {
+            selectedLanguages = selectedLanguages.filter((l) => l !== text);
+          }
+        }
+      }
+
+      async function savePreferencesAndRecommend() {
+        try {
+          // Save user preferences
+          const prefResponse = await fetch(`${API_URL}/user-preferences`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: userData.id,
+              email: userData.email,
+              eras: selectedEras,
+              languages: selectedLanguages,
+            }),
+          });
+
+          if (!prefResponse.ok) {
+            console.error("Failed to save preferences");
+            return;
+          }
+
+          closePreferencesModal();
+          goToMusicRecommendation();
+        } catch (error) {
+          console.error("Error saving preferences:", error);
+        }
+      }
+
+      function closeRecommendation() {
+        recommendationModal.classList.remove("active");
+        // Reset scan tracking for next session
+        scanCount = 0;
+        emotionScansList = [];
+        averageEmotion = null;
+      }
+
+      async function goToMusicRecommendation() {
+        try {
+          // Get recommendations
+          if (!averageEmotion) {
+            await calculateAverageEmotion();
+          }
+
+          averageEmotion = normalizeValidMood(averageEmotion);
+
+          if (!averageEmotion) {
+            alert("Could not determine your mood. Please try again.");
+            return;
+          }
+
+          // Store recommendation data in session
+          sessionStorage.setItem("fromPage", "emotion.html");
+          sessionStorage.setItem("moodForRecommendation", averageEmotion);
+          persistLatestMoodSnapshot(averageEmotion);
+          sessionStorage.setItem("selectedEras", JSON.stringify(selectedEras));
+          sessionStorage.setItem(
+            "selectedLanguages",
+            JSON.stringify(selectedLanguages),
+          );
+
+          // Close modals and redirect to dashboard
+          closeRecommendation();
+          window.location.href = "dashboard.html?mood=" + averageEmotion;
+        } catch (error) {
+          console.error("Error getting recommendations:", error);
+          alert("Could not get recommendations. Please try again.");
+        }
+      }
+
+      async function fetchEmotionHistory() {
+        const query = new URLSearchParams();
+        if (userData.id) {
+          query.set("userId", userData.id);
+        }
+        if (userData.email) {
+          query.set("email", userData.email);
+        }
+        query.set("limit", "90");
+
+        const response = await fetch(
+          `${API_URL}/emotion-history?${query.toString()}`,
+        );
+        const payload = await response.json();
+
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.message || "Failed to fetch emotion history");
+        }
+
+        return (payload.history || []).map((entry) => ({
+          id: entry.id,
+          dominantEmotion: String(entry.dominant_emotion || "").toLowerCase(),
+          emotionScores: entry.emotion_scores || {},
+          detectedAt: entry.detected_at,
+        }));
+      }
+
+      function renderHistorySummary(history) {
+        if (!history.length) {
+          historySummaryEl.innerHTML = `
                     <div class="history-summary-chip">
                         <i class="fas fa-circle-info"></i>
                         <span>Save a few detections to see your timeline.</span>
                     </div>
                 `;
-                return;
-            }
+          return;
+        }
 
-            const latestEntry = history[history.length - 1];
-            const dominantCounts = history.reduce((accumulator, entry) => {
-                accumulator[entry.dominantEmotion] = (accumulator[entry.dominantEmotion] || 0) + 1;
-                return accumulator;
-            }, {});
-            const topEmotion = Object.entries(dominantCounts).sort((a, b) => b[1] - a[1])[0];
+        const latestEntry = history[history.length - 1];
+        const dominantCounts = history.reduce((accumulator, entry) => {
+          accumulator[entry.dominantEmotion] =
+            (accumulator[entry.dominantEmotion] || 0) + 1;
+          return accumulator;
+        }, {});
+        const topEmotion = Object.entries(dominantCounts).sort(
+          (a, b) => b[1] - a[1],
+        )[0];
 
-            historySummaryEl.innerHTML = `
+        historySummaryEl.innerHTML = `
                 <div class="history-summary-chip">
                     <i class="fas fa-database"></i>
                     <span>${history.length} saved detections</span>
@@ -1190,68 +1940,91 @@
                 </div>
                 <div class="history-summary-chip">
                     <i class="fas fa-chart-line"></i>
-                    <span>Most frequent: ${formatEmotionLabel(topEmotion?.[0] || 'unknown')}</span>
+                    <span>Most frequent: ${formatEmotionLabel(topEmotion?.[0] || "unknown")}</span>
                 </div>
             `;
+      }
+
+      function renderHistoryChart(history) {
+        if (!history.length) {
+          historyChartEl.innerHTML = `<div class="history-chart-empty">No history yet. Run emotion detection and saved results will appear here.</div>`;
+          historyLegendEl.innerHTML = "";
+          return;
         }
 
-        function renderHistoryChart(history) {
-            if (!history.length) {
-                historyChartEl.innerHTML = `<div class="history-chart-empty">No history yet. Run emotion detection and saved results will appear here.</div>`;
-                historyLegendEl.innerHTML = '';
-                return;
-            }
+        const chartWidth = 860;
+        const chartHeight = 320;
+        const padding = { top: 24, right: 18, bottom: 48, left: 46 };
+        const innerWidth = chartWidth - padding.left - padding.right;
+        const innerHeight = chartHeight - padding.top - padding.bottom;
+        const maxIndex = Math.max(history.length - 1, 1);
+        const yTicks = [0, 25, 50, 75, 100];
 
-            const chartWidth = 860;
-            const chartHeight = 320;
-            const padding = { top: 24, right: 18, bottom: 48, left: 46 };
-            const innerWidth = chartWidth - padding.left - padding.right;
-            const innerHeight = chartHeight - padding.top - padding.bottom;
-            const maxIndex = Math.max(history.length - 1, 1);
-            const yTicks = [0, 25, 50, 75, 100];
+        const xForIndex = (index) =>
+          padding.left + (innerWidth / maxIndex) * index;
+        const yForValue = (value) =>
+          padding.top +
+          innerHeight -
+          (Math.max(0, Math.min(100, value)) / 100) * innerHeight;
 
-            const xForIndex = (index) => padding.left + ((innerWidth / maxIndex) * index);
-            const yForValue = (value) => padding.top + innerHeight - ((Math.max(0, Math.min(100, value)) / 100) * innerHeight);
-
-            const gridLines = yTicks.map((tick) => `
+        const gridLines = yTicks
+          .map(
+            (tick) => `
                 <line x1="${padding.left}" y1="${yForValue(tick)}" x2="${chartWidth - padding.right}" y2="${yForValue(tick)}" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
                 <text x="${padding.left - 10}" y="${yForValue(tick) + 4}" fill="rgba(255,255,255,0.55)" font-size="12" text-anchor="end">${tick}</text>
-            `).join('');
+            `,
+          )
+          .join("");
 
-            const xLabels = history
-                .filter((_, index) => history.length <= 6 || index === 0 || index === history.length - 1 || index % Math.ceil(history.length / 5) === 0)
-                .map((entry, index) => {
-                    const actualIndex = history.findIndex((item) => item.id === entry.id && item.detectedAt === entry.detectedAt);
-                    return `
+        const xLabels = history
+          .filter(
+            (_, index) =>
+              history.length <= 6 ||
+              index === 0 ||
+              index === history.length - 1 ||
+              index % Math.ceil(history.length / 5) === 0,
+          )
+          .map((entry, index) => {
+            const actualIndex = history.findIndex(
+              (item) =>
+                item.id === entry.id && item.detectedAt === entry.detectedAt,
+            );
+            return `
                         <text x="${xForIndex(actualIndex)}" y="${chartHeight - 18}" fill="rgba(255,255,255,0.58)" font-size="12" text-anchor="middle">
                             ${formatChartDate(entry.detectedAt)}
                         </text>
                     `;
-                })
-                .join('');
+          })
+          .join("");
 
-            const seriesMarkup = historyLineConfig.map((series) => {
-                const points = history.map((entry, index) => {
-                    const value = Number(entry.emotionScores?.[series.key] || 0);
-                    return `${xForIndex(index)},${yForValue(value)}`;
-                }).join(' ');
+        const seriesMarkup = historyLineConfig
+          .map((series) => {
+            const points = history
+              .map((entry, index) => {
+                const value = Number(entry.emotionScores?.[series.key] || 0);
+                return `${xForIndex(index)},${yForValue(value)}`;
+              })
+              .join(" ");
 
-                const circles = history.map((entry, index) => {
-                    const value = Number(entry.emotionScores?.[series.key] || 0);
-                    return `
+            const circles = history
+              .map((entry, index) => {
+                const value = Number(entry.emotionScores?.[series.key] || 0);
+                return `
                         <circle cx="${xForIndex(index)}" cy="${yForValue(value)}" r="3.5" fill="${series.color}">
                             <title>${series.label}: ${value.toFixed(1)}% on ${formatDateTime(entry.detectedAt)}</title>
                         </circle>
                     `;
-                }).join('');
+              })
+              .join("");
 
-                return `
+            return `
                     <polyline fill="none" stroke="${series.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${points}" />
                     ${circles}
                 `;
-            }).join('');
+          })
+          .join("");
 
-            historyChartEl.innerHTML = `
+        historyChartEl.innerHTML = `
                 <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img" aria-label="Emotion history chart">
                     ${gridLines}
                     <line x1="${padding.left}" y1="${padding.top + innerHeight}" x2="${chartWidth - padding.right}" y2="${padding.top + innerHeight}" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" />
@@ -1261,32 +2034,38 @@
                 </svg>
             `;
 
-            historyLegendEl.innerHTML = historyLineConfig.map((series) => `
+        historyLegendEl.innerHTML = historyLineConfig
+          .map(
+            (series) => `
                 <div class="history-legend-item">
                     <span class="history-legend-swatch" style="background: ${series.color}"></span>
                     <span>${series.label}</span>
                 </div>
-            `).join('');
-        }
+            `,
+          )
+          .join("");
+      }
 
-        function renderHistoryList(history) {
-            if (!history.length) {
-                historyListEl.innerHTML = `
+      function renderHistoryList(history) {
+        if (!history.length) {
+          historyListEl.innerHTML = `
                     <div class="history-entry">
                         <div class="history-entry-meta">No entries saved yet. Use emotion detection and your results will appear here.</div>
                     </div>
                 `;
-                return;
-            }
+          return;
+        }
 
-            historyListEl.innerHTML = history
-                .slice()
-                .reverse()
-                .slice(0, 12)
-                .map((entry) => {
-                    const score = Number(entry.emotionScores?.[entry.dominantEmotion] || 0);
-                    const userName = userData.name || 'User';
-                    return `
+        historyListEl.innerHTML = history
+          .slice()
+          .reverse()
+          .slice(0, 12)
+          .map((entry) => {
+            const score = Number(
+              entry.emotionScores?.[entry.dominantEmotion] || 0,
+            );
+            const userName = userData.name || "User";
+            return `
                         <div class="history-entry">
                             <div class="history-entry-user">${userName}</div>
                             <div class="history-entry-header">
@@ -1298,63 +2077,65 @@
                             </div>
                         </div>
                     `;
-                })
-                .join('');
-        }
+          })
+          .join("");
+      }
 
-        function setHistoryStatus(type, message) {
-            const icon = type === 'error'
-                ? 'fa-triangle-exclamation'
-                : type === 'success'
-                    ? 'fa-circle-check'
-                    : 'fa-circle-notch fa-spin';
+      function setHistoryStatus(type, message) {
+        const icon =
+          type === "error"
+            ? "fa-triangle-exclamation"
+            : type === "success"
+              ? "fa-circle-check"
+              : "fa-circle-notch fa-spin";
 
-            historyStatusEl.innerHTML = `
+        historyStatusEl.innerHTML = `
                 <i class="fas ${icon}"></i>
                 <span>${message}</span>
             `;
-        }
+      }
 
-        function setEmotionStatus(type, message) {
-            const icon = type === 'error'
-                ? 'fa-triangle-exclamation'
-                : type === 'success'
-                    ? 'fa-circle-check'
-                    : 'fa-circle-notch fa-spin';
+      function setEmotionStatus(type, message) {
+        const icon =
+          type === "error"
+            ? "fa-triangle-exclamation"
+            : type === "success"
+              ? "fa-circle-check"
+              : "fa-circle-notch fa-spin";
 
-            emotionStatus.innerHTML = `
+        emotionStatus.innerHTML = `
                 <i class="fas ${icon}"></i>
                 <span>${message}</span>
             `;
-        }
+      }
 
-        function formatEmotionLabel(label) {
-            return String(label || '')
-                .replace(/_/g, ' ')
-                .replace(/\b\w/g, (char) => char.toUpperCase());
-        }
+      function formatEmotionLabel(label) {
+        return String(label || "")
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (char) => char.toUpperCase());
+      }
 
-        function formatChartDate(value) {
-            const date = new Date(value);
-            return Number.isNaN(date.getTime())
-                ? '--'
-                : date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        }
+      function formatChartDate(value) {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime())
+          ? "--"
+          : date.toLocaleDateString([], { month: "short", day: "numeric" });
+      }
 
-        function formatDateTime(value) {
-            const date = new Date(value);
-            return Number.isNaN(date.getTime())
-                ? 'Unknown date'
-                : date.toLocaleString([], {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit'
-                });
-        }
+      function formatDateTime(value) {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime())
+          ? "Unknown date"
+          : date.toLocaleString([], {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            });
+      }
 
-        window.addEventListener('beforeunload', closeEmotionDetection);
+      window.addEventListener("beforeunload", closeEmotionDetection);
     </script>
-</body>
+  </body>
 </html>
