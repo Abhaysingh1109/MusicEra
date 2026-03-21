@@ -123,9 +123,7 @@ const MOOD_KEYWORDS = {
   neutral: ["chill", "lofi", "focus", "instrumental", "ambient", "calm"],
 };
 
-const FACE_MATCH_THRESHOLD = Number(
-  process.env.FACE_MATCH_THRESHOLD || "0.24",
-);
+const FACE_MATCH_THRESHOLD = Number(process.env.FACE_MATCH_THRESHOLD || "0.24");
 const FACE_MATCH_MIN_MARGIN = Number(
   process.env.FACE_MATCH_MIN_MARGIN || "0.015",
 );
@@ -826,10 +824,7 @@ app.post("/api/register/request-otp", async (req, res) => {
       maskedEmail: maskEmailAddress(email),
       expiresInMinutes: OTP_EXPIRY_MINUTES,
       deliveryMode,
-      devOtp:
-        deliveryMode === "console" && !isProduction
-          ? otp
-          : undefined,
+      devOtp: deliveryMode === "console" && !isProduction ? otp : undefined,
     });
   } catch (error) {
     console.error("Signup OTP request error:", error);
@@ -1907,18 +1902,30 @@ app.post("/api/search", async (req, res) => {
   }
 });
 
+async function withTimeout(promise, timeoutMs, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+        timeoutMs,
+      ),
+    ),
+  ]);
+}
+
 async function startServer() {
   console.log("🚀 Starting MusicEra server...");
   await initializeDatabase();
   try {
     console.log("🧠 Warming emotion detection worker...");
-    await ensureEmotionWorker();
+    await withTimeout(ensureEmotionWorker(), 30000, "Emotion worker warmup");
   } catch (error) {
     console.error("⚠️ Emotion worker warmup failed:", error.message);
   }
   try {
     console.log("🛡️ Warming face auth worker...");
-    await ensureFaceAuthWorker();
+    await withTimeout(ensureFaceAuthWorker(), 60000, "Face auth worker warmup");
   } catch (error) {
     console.error("⚠️ Face auth worker warmup failed:", error.message);
   }
