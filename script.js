@@ -6,7 +6,7 @@ const API_BASE = String(
     localStorage.getItem("MUSICERA_API_BASE") ||
     (window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1"
-      ? "http://localhost:3000"
+      ? "http://localhost:3001"
       : ""),
 )
   .trim()
@@ -36,6 +36,10 @@ const otpStatus = document.getElementById("otpStatus");
 const otpEmailDisplay = document.getElementById("otpEmailDisplay");
 const resendOtpBtn = document.getElementById("resendOtpBtn");
 const verifyOtpBtn = document.getElementById("verifyOtpBtn");
+const signupForm = document.getElementById("signupForm");
+const signupEmailInput = document.getElementById("signupEmail");
+const signupEmailStatus = document.getElementById("signupEmailStatus");
+const signupSubmitBtn = document.getElementById("signupSubmitBtn");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const video = document.getElementById("video");
 const faceCanvas = document.getElementById("faceCanvas");
@@ -50,6 +54,10 @@ let currentMode = ""; // 'signup-setup', 'login'
 let currentUserEmail = null;
 let pendingSignupPayload = null;
 let pendingMaskedEmail = "";
+let isSignupEmailEligible = false;
+let isSignupOtpRequestInProgress = false;
+let signupEmailCheckDebounceId = null;
+let signupEmailCheckRequestId = 0;
 let detectionIntervalId = null;
 let scanToken = 0;
 let stableDetectionCount = 0;
@@ -87,12 +95,155 @@ async function initApp() {
 
   // Initialize password strength
   initPasswordStrength();
+  initSignupEmailValidation();
 
   // Ensure manual login is hidden by default
   const manualFields = document.getElementById("manualLoginFields");
   const submitBtn = document.getElementById("loginSubmitBtn");
   if (manualFields) manualFields.style.display = "none";
   if (submitBtn) submitBtn.style.display = "none";
+}
+
+function normalizeEmailForValidation(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function isValidEmailFormat(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function setSignupEmailStatus(type, message) {
+  if (!signupEmailStatus) return;
+
+  signupEmailStatus.className = "form-hint";
+  if (type) {
+    signupEmailStatus.classList.add(type);
+  }
+  signupEmailStatus.textContent = message || "";
+}
+
+function updateSignupSubmitState() {
+  if (!signupSubmitBtn) return;
+
+  signupSubmitBtn.disabled =
+    isSignupOtpRequestInProgress || !isSignupEmailEligible;
+}
+
+async function checkEmailAvailability(email) {
+  const response = await fetch(`${API_URL}/register/check-email`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = {};
+  }
+
+  if (!response.ok) {
+    const fallbackMessage =
+      response.status === 404
+        ? "Signup email-check endpoint not found. Ensure API base points to the MusicEra backend."
+        : "Unable to validate email right now";
+
+    return {
+      success: false,
+      available: false,
+      message: data.message || fallbackMessage,
+    };
+  }
+
+  return {
+    success: Boolean(data.success),
+    available: Boolean(data.available),
+    message: data.message || "",
+  };
+}
+
+async function validateSignupEmailAvailability() {
+  const email = normalizeEmailForValidation(signupEmailInput?.value);
+  signupEmailCheckRequestId += 1;
+  const requestId = signupEmailCheckRequestId;
+
+  isSignupEmailEligible = false;
+  updateSignupSubmitState();
+
+  if (!email) {
+    setSignupEmailStatus("", "");
+    return;
+  }
+
+  if (!isValidEmailFormat(email)) {
+    setSignupEmailStatus("error", "Enter a valid email address.");
+    return;
+  }
+
+  if (!API_BASE) {
+    setSignupEmailStatus("error", "Backend API is not configured.");
+    return;
+  }
+
+  setSignupEmailStatus("info", "Checking email availability...");
+
+  try {
+    const result = await checkEmailAvailability(email);
+    if (requestId !== signupEmailCheckRequestId) {
+      return;
+    }
+
+    if (!result.success) {
+      setSignupEmailStatus("error", result.message);
+      return;
+    }
+
+    if (!result.available) {
+      setSignupEmailStatus("error", "This email is already registered.");
+      return;
+    }
+
+    isSignupEmailEligible = true;
+    setSignupEmailStatus("success");
+  } catch (error) {
+    if (requestId !== signupEmailCheckRequestId) {
+      return;
+    }
+    setSignupEmailStatus("error", "Unable to validate email right now.");
+  } finally {
+    updateSignupSubmitState();
+  }
+}
+
+function initSignupEmailValidation() {
+  updateSignupSubmitState();
+
+  if (!signupEmailInput) return;
+
+  signupEmailInput.addEventListener("input", () => {
+    if (signupEmailCheckDebounceId) {
+      clearTimeout(signupEmailCheckDebounceId);
+    }
+
+    isSignupEmailEligible = false;
+    updateSignupSubmitState();
+
+    signupEmailCheckDebounceId = setTimeout(() => {
+      validateSignupEmailAvailability();
+    }, 350);
+  });
+
+  signupEmailInput.addEventListener("blur", () => {
+    if (signupEmailCheckDebounceId) {
+      clearTimeout(signupEmailCheckDebounceId);
+    }
+    validateSignupEmailAvailability();
+  });
 }
 
 function maskEmail(email) {
@@ -154,8 +305,6 @@ async function requestSignupOtp(signupPayload, isResend = false) {
     return false;
   }
 
-  const signupSubmitBtn = document.querySelector("#signupForm .btn-submit");
-
   if (!signupPayload) {
     alert("Signup details are missing. Please fill the form again.");
     return false;
@@ -175,7 +324,8 @@ async function requestSignupOtp(signupPayload, isResend = false) {
       : `Sending OTP to ${pendingMaskedEmail}...`,
   );
 
-  if (signupSubmitBtn) signupSubmitBtn.disabled = true;
+  isSignupOtpRequestInProgress = true;
+  updateSignupSubmitState();
   if (resendOtpBtn) resendOtpBtn.disabled = true;
   if (verifyOtpBtn) verifyOtpBtn.disabled = true;
 
@@ -245,7 +395,8 @@ async function requestSignupOtp(signupPayload, isResend = false) {
 
     return false;
   } finally {
-    if (signupSubmitBtn) signupSubmitBtn.disabled = false;
+    isSignupOtpRequestInProgress = false;
+    updateSignupSubmitState();
     if (resendOtpBtn) resendOtpBtn.disabled = false;
     if (verifyOtpBtn) verifyOtpBtn.disabled = false;
   }
@@ -1036,15 +1187,22 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
 });
 
 // Signup form submission
-document.getElementById("signupForm")?.addEventListener("submit", async (e) => {
+signupForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const name = document.getElementById("signupName").value;
-  const email = document.getElementById("signupEmail").value;
+  const email = normalizeEmailForValidation(
+    document.getElementById("signupEmail").value,
+  );
   const password = document.getElementById("signupPassword").value;
   const confirmPassword = document.getElementById(
     "signupConfirmPassword",
   ).value;
+
+  if (!isSignupEmailEligible) {
+    alert("Please enter a new email address that is not already registered.");
+    return;
+  }
 
   if (password !== confirmPassword) {
     alert("Passwords do not match!");
@@ -1117,7 +1275,10 @@ otpForm?.addEventListener("submit", async (e) => {
     closeOtpModal(true);
 
     faceSetupModal.classList.add("active");
-    document.getElementById("signupForm")?.reset();
+    signupForm?.reset();
+    isSignupEmailEligible = false;
+    setSignupEmailStatus("", "");
+    updateSignupSubmitState();
   } catch (error) {
     console.error("OTP verification error:", error);
     setOtpStatus("error", `Connection error. Check API base: ${API_BASE}`);

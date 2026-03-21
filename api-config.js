@@ -60,15 +60,25 @@
 
   const storedBase = normalizeBase(localStorage.getItem("MUSICERA_API_BASE"));
   const defaultBase = normalizeBase(DEFAULT_DEPLOYED_API_BASE);
+  const staleLocalFrontendBase =
+    isLocalHost &&
+    (storedBase === "http://localhost:3000" ||
+      storedBase === "http://127.0.0.1:3000");
+
+  const correctedStoredBase = staleLocalFrontendBase ? "" : storedBase;
+
+  if (staleLocalFrontendBase) {
+    localStorage.removeItem("MUSICERA_API_BASE");
+  }
 
   const inMemoryBase = normalizeBase(window.MUSICERA_API_BASE);
   const preferredBase =
-    [inMemoryBase, storedBase, !isLocalHost ? defaultBase : ""].filter(
+    [inMemoryBase, correctedStoredBase, !isLocalHost ? defaultBase : ""].filter(
       (candidate) => candidate && !isInvalidApiBase(candidate),
     )[0] || "";
 
   const resolvedBase =
-    preferredBase || (isLocalHost ? "http://localhost:3000" : "");
+    preferredBase || (isLocalHost ? "http://localhost:3001" : "");
 
   if (resolvedBase) {
     window.MUSICERA_API_BASE = resolvedBase;

@@ -355,6 +355,26 @@ body::before {
     box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.1);
 }
 
+.form-hint {
+    display: block;
+    min-height: 18px;
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.form-hint.error {
+    color: var(--error);
+}
+
+.form-hint.success {
+    color: var(--success);
+}
+
+.form-hint.info {
+    color: var(--warning);
+}
+
 /* Password Input */
 .password-input {
     position: relative;
