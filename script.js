@@ -15,6 +15,7 @@ const resendOtpBtn = document.getElementById("resendOtpBtn");
 const verifyOtpBtn = document.getElementById("verifyOtpBtn");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const video = document.getElementById("video");
+const faceCanvas = document.getElementById("faceCanvas");
 const faceStatus = document.getElementById("faceStatus");
 const enableFaceToggle = document.getElementById("enableFaceToggle");
 const setupFaceBtn = document.getElementById("setupFaceBtn");
@@ -24,9 +25,26 @@ let faceApiLoaded = false;
 let stream = null;
 let currentMode = ""; // 'signup-setup', 'login'
 let currentUserEmail = null;
-let currentFaceDescriptor = null;
 let pendingSignupPayload = null;
 let pendingMaskedEmail = "";
+let detectionIntervalId = null;
+let scanToken = 0;
+let stableDetectionCount = 0;
+let captureInProgress = false;
+const FACE_LOGIN_SAMPLE_COUNT = 2;
+const FACE_ENROLL_SAMPLE_COUNT = 3;
+const FACE_LOGIN_STABLE_PASSES = 2;
+const FACE_ENROLL_STABLE_PASSES = 3;
+
+function getFaceSampleCount() {
+  return currentMode === "login" ? FACE_LOGIN_SAMPLE_COUNT : FACE_ENROLL_SAMPLE_COUNT;
+}
+
+function getRequiredStablePasses() {
+  return currentMode === "login"
+    ? FACE_LOGIN_STABLE_PASSES
+    : FACE_ENROLL_STABLE_PASSES;
+}
 
 // Initialize when page loads
 document.addEventListener("DOMContentLoaded", () => {
@@ -195,21 +213,18 @@ async function requestSignupOtp(signupPayload, isResend = false) {
 // Load Face API
 async function loadFaceAPI() {
   try {
-    // Use jsdelivr CDN for models - this is the reliable source
     const MODEL_URL =
       "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model";
 
     await Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
     ]);
 
     faceApiLoaded = true;
-    console.log("Face API loaded successfully");
+    console.log("Face guidance models loaded successfully");
   } catch (error) {
     console.error("Error loading Face API:", error);
-    // Try fallback to original face-api.js models
     try {
       const MODEL_URL =
         "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models";
@@ -217,11 +232,10 @@ async function loadFaceAPI() {
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
       ]);
 
       faceApiLoaded = true;
-      console.log("Face API loaded successfully (fallback)");
+      console.log("Face guidance models loaded successfully (fallback)");
     } catch (fallbackError) {
       console.error("Error loading Face API (fallback):", fallbackError);
     }
@@ -331,7 +345,7 @@ function startFaceSetup() {
   currentMode = "signup-setup";
   document.getElementById("faceModalTitle").textContent = "Set Up Face ID";
   document.getElementById("faceModalDesc").textContent =
-    "Position your face in the frame to register";
+    "Capture a secure facial profile for future logins";
   faceSetupModal.classList.remove("active");
   faceModal.classList.add("active");
   startCamera();
@@ -356,15 +370,10 @@ function toggleFaceLogin() {
 
 // Start Face Login
 async function startFaceLogin() {
-  if (!faceApiLoaded) {
-    alert("Face recognition is still loading. Please wait a moment.");
-    return;
-  }
-
   currentMode = "login";
   document.getElementById("faceModalTitle").textContent = "Face Login";
   document.getElementById("faceModalDesc").textContent =
-    "Position your face in the frame to login";
+    "Align your face in the scan area for secure verification";
 
   faceModal.classList.add("active");
   await startCamera();
@@ -395,15 +404,19 @@ function startFaceSetupFromLogin() {
   currentMode = "login-setup";
   document.getElementById("faceModalTitle").textContent = "Set Up Face ID";
   document.getElementById("faceModalDesc").textContent =
-    "Position your face in the frame to register";
+    "Capture a secure facial profile for future logins";
   faceModal.classList.add("active");
   startCamera();
 }
 
 // Close Face Modal
 function closeFaceModal() {
+  scanToken += 1;
   faceModal.classList.remove("active");
   stopCamera();
+  clearFaceOverlay();
+  stableDetectionCount = 0;
+  captureInProgress = false;
 
   // Reset status
   faceStatus.className = "face-status";
@@ -414,10 +427,14 @@ function closeFaceModal() {
 // Start Camera
 async function startCamera() {
   try {
+    clearFaceOverlay();
+    stableDetectionCount = 0;
+    captureInProgress = false;
+
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: { ideal: 640 },
-        height: { ideal: 480 },
+        width: { ideal: 960 },
+        height: { ideal: 720 },
         facingMode: "user",
       },
     });
@@ -433,10 +450,18 @@ async function startCamera() {
       };
     });
 
-    // Give camera extra time to stabilize
+    syncFaceCanvasSize();
+    video.onresize = () => syncFaceCanvasSize();
+
     setTimeout(() => {
+      if (!faceApiLoaded) {
+        updateFaceStatus(
+          "scanning",
+          "Scanner is loading. Keep your face centered in the frame.",
+        );
+      }
       detectFace();
-    }, 500);
+    }, 400);
   } catch (error) {
     console.error("Error accessing camera:", error);
     updateFaceStatus(
@@ -448,9 +473,256 @@ async function startCamera() {
 
 // Stop Camera
 function stopCamera() {
+  if (detectionIntervalId) {
+    clearInterval(detectionIntervalId);
+    detectionIntervalId = null;
+  }
   if (stream) {
     stream.getTracks().forEach((track) => track.stop());
     stream = null;
+  }
+}
+
+function syncFaceCanvasSize() {
+  if (!faceCanvas || !video.videoWidth || !video.videoHeight) return;
+
+  faceCanvas.width = video.videoWidth;
+  faceCanvas.height = video.videoHeight;
+}
+
+function clearFaceOverlay() {
+  if (!faceCanvas) return;
+
+  const context = faceCanvas.getContext("2d");
+  if (!context) return;
+  context.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+}
+
+function getGuideBounds() {
+  if (!faceCanvas) {
+    return null;
+  }
+
+  const width = faceCanvas.width;
+  const height = faceCanvas.height;
+
+  return {
+    left: width * 0.18,
+    top: height * 0.1,
+    right: width * 0.82,
+    bottom: height * 0.92,
+  };
+}
+
+function isFaceInsideGuide(box) {
+  const guide = getGuideBounds();
+  if (!guide || !box) return false;
+
+  return (
+    box.x >= guide.left &&
+    box.y >= guide.top &&
+    box.x + box.width <= guide.right &&
+    box.y + box.height <= guide.bottom
+  );
+}
+
+function drawFaceOverlay(detection) {
+  if (!faceCanvas) return;
+
+  const context = faceCanvas.getContext("2d");
+  if (!context) return;
+
+  context.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+
+  if (!detection) return;
+
+  const box = detection.detection.box;
+  const landmarks = detection.landmarks?.positions || [];
+  const overlayOk = isFaceInsideGuide(box);
+
+  context.save();
+  context.translate(faceCanvas.width, 0);
+  context.scale(-1, 1);
+
+  context.strokeStyle = overlayOk ? "rgba(110, 231, 183, 0.95)" : "rgba(248, 113, 113, 0.95)";
+  context.fillStyle = overlayOk ? "rgba(34, 197, 94, 0.18)" : "rgba(239, 68, 68, 0.14)";
+  context.lineWidth = Math.max(3, faceCanvas.width * 0.006);
+
+  context.beginPath();
+  context.ellipse(
+    box.x + box.width / 2,
+    box.y + box.height / 2,
+    box.width * 0.58,
+    box.height * 0.7,
+    0,
+    0,
+    Math.PI * 2,
+  );
+  context.fill();
+  context.stroke();
+
+  if (landmarks.length > 0) {
+    context.fillStyle = "rgba(187, 247, 208, 0.95)";
+    for (const point of landmarks) {
+      context.beginPath();
+      context.arc(point.x, point.y, 1.9, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+
+  context.restore();
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function captureFrame() {
+  if (!video.videoWidth || !video.videoHeight) {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const context = canvas.getContext("2d");
+  context.translate(canvas.width, 0);
+  context.scale(-1, 1);
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.92);
+}
+
+async function collectFaceFrames(activeToken) {
+  const frames = [];
+  const sampleCount = getFaceSampleCount();
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    if (activeToken !== scanToken || !stream) {
+      return [];
+    }
+
+    updateFaceStatus(
+      "scanning",
+      `Capturing secure face sample ${index + 1} of ${sampleCount}...`,
+    );
+
+    const frame = captureFrame();
+    if (!frame) {
+      return [];
+    }
+
+    frames.push(frame);
+    if (index < sampleCount - 1) {
+      await wait(180);
+    }
+  }
+
+  return frames;
+}
+
+function persistLoggedInUser(user) {
+  sessionStorage.setItem(
+    "userData",
+    JSON.stringify({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      hasFace: Boolean(user.hasFace),
+    }),
+  );
+}
+
+async function submitFaceFrames(frames) {
+  const normalizedFrames = Array.isArray(frames)
+    ? frames.filter((frame) => typeof frame === "string" && frame.trim())
+    : [];
+
+  if (!normalizedFrames.length) {
+    updateFaceStatus("error", "Could not capture a clear face sample.");
+    return;
+  }
+
+  const endpoint = currentMode === "login" ? "face-login" : "save-face";
+  const payload =
+    currentMode === "login"
+      ? { images: normalizedFrames, image: normalizedFrames[0] }
+      : {
+          email: currentUserEmail,
+          images: normalizedFrames,
+          image: normalizedFrames[0],
+        };
+
+  const pendingMessage =
+    currentMode === "login"
+      ? "Running secure face verification..."
+      : "Analyzing face samples and saving your profile...";
+
+  updateFaceStatus("success", pendingMessage);
+
+  try {
+    const response = await fetch(`${API_URL}/${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      updateFaceStatus("error", data.message || "Face verification failed.");
+      captureInProgress = false;
+      stableDetectionCount = 0;
+      return;
+    }
+
+    if (currentMode === "login") {
+      updateFaceStatus("success", "Face verified. Logging you in...");
+      persistLoggedInUser({
+        ...data.user,
+        hasFace: true,
+      });
+
+      setTimeout(() => {
+        closeFaceModal();
+        window.location.href = "emotion.html";
+      }, 1000);
+      return;
+    }
+
+    updateFaceStatus("success", "Face ID enabled successfully!");
+
+    setTimeout(() => {
+      closeFaceModal();
+      alert("Face ID has been enabled for your account!");
+
+      if (currentMode === "signup-setup") {
+        switchTab("login");
+      }
+
+      const faceLoginToggleEl = document.getElementById("faceLoginToggle");
+      const faceSetupOptionEl = document.getElementById("faceSetupOption");
+
+      if (faceLoginToggleEl) {
+        const container = faceLoginToggleEl.closest(
+          ".face-login-toggle-container",
+        );
+        if (container) container.style.display = "block";
+      }
+
+      if (faceSetupOptionEl) {
+        faceSetupOptionEl.style.display = "none";
+      }
+    }, 1200);
+  } catch (error) {
+    console.error("Face verification error:", error);
+    updateFaceStatus(
+      "error",
+      "Connection error. Please try again.",
+    );
+    captureInProgress = false;
+    stableDetectionCount = 0;
   }
 }
 
@@ -458,207 +730,143 @@ function stopCamera() {
 async function detectFace() {
   if (!stream || !video.srcObject) return;
 
-  // Ensure video has proper dimensions
   if (!video.videoWidth || !video.videoHeight) {
-    console.log("Video not ready, waiting...");
-    setTimeout(() => detectFace(), 500);
+    setTimeout(() => detectFace(), 300);
     return;
   }
 
+  syncFaceCanvasSize();
+  const activeToken = ++scanToken;
   let attempts = 0;
-  const maxAttempts = 60; // Increased attempts (30 seconds)
-  const detectionInterval = setInterval(async () => {
-    if (!stream || attempts >= maxAttempts) {
-      clearInterval(detectionInterval);
+  const maxAttempts = 90;
 
-      if (attempts >= maxAttempts) {
-        updateFaceStatus("error", "Face not detected. Please try again.");
-      }
+  if (detectionIntervalId) {
+    clearInterval(detectionIntervalId);
+  }
+
+  detectionIntervalId = setInterval(async () => {
+    if (activeToken !== scanToken || !stream) {
+      clearInterval(detectionIntervalId);
+      detectionIntervalId = null;
+      return;
+    }
+
+    if (captureInProgress) {
+      return;
+    }
+
+    if (attempts >= maxAttempts) {
+      clearInterval(detectionIntervalId);
+      detectionIntervalId = null;
+      updateFaceStatus(
+        "error",
+        "No stable face scan detected. Move closer and try again.",
+      );
+      clearFaceOverlay();
       return;
     }
 
     try {
-      // Use TinyFaceDetector with input size for better detection
-      const detections = await faceapi.detectAllFaces(
-        video,
-        new faceapi.TinyFaceDetectorOptions({
-          inputSize: 320,
-          scoreThreshold: 0.5,
-        }),
+      if (!faceApiLoaded) {
+        attempts += 1;
+        updateFaceStatus(
+          "scanning",
+          "Preparing scanner guidance. Keep your face centered and hold still.",
+        );
+
+        if (attempts >= 12) {
+          captureInProgress = true;
+          clearInterval(detectionIntervalId);
+          detectionIntervalId = null;
+          const frames = await collectFaceFrames(activeToken);
+          await submitFaceFrames(frames);
+        }
+        return;
+      }
+
+      const detections = await faceapi
+        .detectAllFaces(
+          video,
+          new faceapi.TinyFaceDetectorOptions({
+            inputSize: 320,
+            scoreThreshold: 0.5,
+          }),
+        )
+        .withFaceLandmarks();
+
+      if (!detections.length) {
+        attempts += 1;
+        stableDetectionCount = 0;
+        clearFaceOverlay();
+        updateFaceStatus("scanning", "Looking for a face...");
+        return;
+      }
+
+      if (detections.length > 1) {
+        attempts += 1;
+        stableDetectionCount = 0;
+        clearFaceOverlay();
+        updateFaceStatus(
+          "error",
+          "Only one face can be in the frame during login.",
+        );
+        return;
+      }
+
+      const detection = detections[0];
+      const box = detection.detection.box;
+      drawFaceOverlay(detection);
+
+      const faceInsideGuide = isFaceInsideGuide(box);
+      const faceAreaRatio =
+        (box.width * box.height) / (faceCanvas.width * faceCanvas.height);
+
+      if (!faceInsideGuide) {
+        attempts += 1;
+        stableDetectionCount = 0;
+        updateFaceStatus(
+          "scanning",
+          "Center your face inside the guide area.",
+        );
+        return;
+      }
+
+      if (faceAreaRatio < 0.12) {
+        attempts += 1;
+        stableDetectionCount = 0;
+        updateFaceStatus(
+          "scanning",
+          "Move a little closer so the scanner can capture more detail.",
+        );
+        return;
+      }
+
+      stableDetectionCount += 1;
+      const requiredStablePasses = getRequiredStablePasses();
+      const lockPercent = Math.min(
+        100,
+        Math.round((stableDetectionCount / requiredStablePasses) * 100),
+      );
+      updateFaceStatus(
+        "scanning",
+        `Face lock ${lockPercent}%. Hold still for secure capture.`,
       );
 
-      console.log("Detections:", detections.length);
-
-      if (detections && detections.length > 0) {
-        clearInterval(detectionInterval);
-        console.log("Face found, getting descriptor...");
-
-        const detection = await faceapi
-          .detectSingleFace(
-            video,
-            new faceapi.TinyFaceDetectorOptions({
-              inputSize: 320,
-              scoreThreshold: 0.5,
-            }),
-          )
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-
-        if (detection) {
-          currentFaceDescriptor = Array.from(detection.descriptor);
-          console.log("Face descriptor obtained");
-
-          if (currentMode === "signup-setup") {
-            // Save face to user's account in database
-            updateFaceStatus("success", "Face registered! Saving...");
-
-            try {
-              const response = await fetch(`${API_URL}/save-face`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  email: currentUserEmail,
-                  faceDescriptor: currentFaceDescriptor,
-                }),
-              });
-
-              const data = await response.json();
-
-              if (data.success) {
-                updateFaceStatus("success", "Face ID enabled successfully!");
-                setTimeout(() => {
-                  closeFaceModal();
-                  alert("Face ID has been enabled for your account!");
-                  // Switch to login
-                  switchTab("login");
-                  // Show face login option
-                  const faceLoginToggleEl =
-                    document.getElementById("faceLoginToggle");
-                  if (faceLoginToggleEl) {
-                    const container = faceLoginToggleEl.closest(
-                      ".face-login-toggle-container",
-                    );
-                    if (container) container.style.display = "block";
-                  }
-                }, 1500);
-              } else {
-                updateFaceStatus(
-                  "error",
-                  data.message || "Failed to save face data",
-                );
-              }
-            } catch (error) {
-              console.error("Save face error:", error);
-              updateFaceStatus("error", "Connection error");
-            }
-          } else if (currentMode === "login-setup") {
-            // Save face from login page (user is already logged in)
-            updateFaceStatus("success", "Face registered! Saving...");
-
-            try {
-              const response = await fetch(`${API_URL}/save-face`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  email: currentUserEmail,
-                  faceDescriptor: currentFaceDescriptor,
-                }),
-              });
-
-              const data = await response.json();
-
-              if (data.success) {
-                updateFaceStatus("success", "Face ID enabled successfully!");
-                setTimeout(() => {
-                  closeFaceModal();
-                  alert("Face ID has been enabled for your account!");
-                  // Show face login toggle
-                  const faceLoginToggleEl =
-                    document.getElementById("faceLoginToggle");
-                  const faceSetupOptionEl =
-                    document.getElementById("faceSetupOption");
-                  if (faceLoginToggleEl) {
-                    const container = faceLoginToggleEl.closest(
-                      ".face-login-toggle-container",
-                    );
-                    if (container) container.style.display = "block";
-                  }
-                  if (faceSetupOptionEl)
-                    faceSetupOptionEl.style.display = "none";
-                }, 1500);
-              } else {
-                updateFaceStatus(
-                  "error",
-                  data.message || "Failed to save face data",
-                );
-              }
-            } catch (error) {
-              console.error("Save face error:", error);
-              updateFaceStatus("error", "Connection error");
-            }
-          } else if (currentMode === "login") {
-            // Login with face - send to backend for verification
-            updateFaceStatus("success", "Face recognized! Verifying...");
-
-            try {
-              console.log("Sending face login request...");
-              const response = await fetch(`${API_URL}/face-login`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  faceDescriptor: currentFaceDescriptor,
-                }),
-              });
-
-              console.log("Response status:", response.status);
-              const data = await response.json();
-              console.log("Response data:", data);
-
-              if (data.success) {
-                updateFaceStatus("success", "Login successful!");
-
-                // Store user data and redirect
-                sessionStorage.setItem(
-                  "userData",
-                  JSON.stringify({
-                    id: data.user.id,
-                    name: data.user.name,
-                    email: data.user.email,
-                    hasFace: true,
-                  }),
-                );
-
-                setTimeout(() => {
-                  closeFaceModal();
-                  window.location.href = "emotion.html";
-                }, 1000);
-              } else {
-                updateFaceStatus(
-                  "error",
-                  data.message || "Face not recognized",
-                );
-              }
-            } catch (error) {
-              console.error("Face login API error:", error);
-              updateFaceStatus("error", "Connection error. Please try again.");
-            }
-          }
-        }
-      } else {
-        attempts++;
-        updateFaceStatus("scanning", "Looking for face...");
+      if (stableDetectionCount < requiredStablePasses) {
+        return;
       }
+
+      captureInProgress = true;
+      clearInterval(detectionIntervalId);
+      detectionIntervalId = null;
+      const frames = await collectFaceFrames(activeToken);
+      await submitFaceFrames(frames);
     } catch (error) {
       console.error("Face detection error:", error);
-      attempts++;
+      attempts += 1;
+      stableDetectionCount = 0;
     }
-  }, 500);
+  }, 180);
 }
 
 // Update Face Status
