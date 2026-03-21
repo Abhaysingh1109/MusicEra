@@ -2,7 +2,7 @@
 const express = require("express");
 const { Pool } = require("pg");
 const cors = require("cors");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const path = require("path");
 const readline = require("readline");
 const fs = require("fs/promises");
