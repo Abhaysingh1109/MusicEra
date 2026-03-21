@@ -1,7 +1,14 @@
 // MusicEra - Login & Signup with Face Recognition
 // Connected to PostgreSQL Backend API
 
-const API_URL = "http://localhost:3000/api";
+const API_BASE =
+  window.MUSICERA_API_BASE ||
+  localStorage.getItem("MUSICERA_API_BASE") ||
+  (window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
+    ? "http://localhost:3000"
+    : `${window.location.origin}`);
+const API_URL = `${API_BASE}/api`;
 
 // DOM Elements
 const faceModal = document.getElementById("faceModal");
@@ -37,7 +44,9 @@ const FACE_LOGIN_STABLE_PASSES = 2;
 const FACE_ENROLL_STABLE_PASSES = 3;
 
 function getFaceSampleCount() {
-  return currentMode === "login" ? FACE_LOGIN_SAMPLE_COUNT : FACE_ENROLL_SAMPLE_COUNT;
+  return currentMode === "login"
+    ? FACE_LOGIN_SAMPLE_COUNT
+    : FACE_ENROLL_SAMPLE_COUNT;
 }
 
 function getRequiredStablePasses() {
@@ -71,7 +80,9 @@ async function initApp() {
 }
 
 function maskEmail(email) {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
   const [localPart, domain] = normalizedEmail.split("@");
 
   if (!localPart || !domain) {
@@ -544,8 +555,12 @@ function drawFaceOverlay(detection) {
   context.translate(faceCanvas.width, 0);
   context.scale(-1, 1);
 
-  context.strokeStyle = overlayOk ? "rgba(110, 231, 183, 0.95)" : "rgba(248, 113, 113, 0.95)";
-  context.fillStyle = overlayOk ? "rgba(34, 197, 94, 0.18)" : "rgba(239, 68, 68, 0.14)";
+  context.strokeStyle = overlayOk
+    ? "rgba(110, 231, 183, 0.95)"
+    : "rgba(248, 113, 113, 0.95)";
+  context.fillStyle = overlayOk
+    ? "rgba(34, 197, 94, 0.18)"
+    : "rgba(239, 68, 68, 0.14)";
   context.lineWidth = Math.max(3, faceCanvas.width * 0.006);
 
   context.beginPath();
@@ -717,10 +732,7 @@ async function submitFaceFrames(frames) {
     }, 1200);
   } catch (error) {
     console.error("Face verification error:", error);
-    updateFaceStatus(
-      "error",
-      "Connection error. Please try again.",
-    );
+    updateFaceStatus("error", "Connection error. Please try again.");
     captureInProgress = false;
     stableDetectionCount = 0;
   }
@@ -824,10 +836,7 @@ async function detectFace() {
       if (!faceInsideGuide) {
         attempts += 1;
         stableDetectionCount = 0;
-        updateFaceStatus(
-          "scanning",
-          "Center your face inside the guide area.",
-        );
+        updateFaceStatus("scanning", "Center your face inside the guide area.");
         return;
       }
 
@@ -993,7 +1002,10 @@ otpForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   if (!pendingSignupPayload?.email) {
-    setOtpStatus("error", "Signup details expired. Fill the signup form again.");
+    setOtpStatus(
+      "error",
+      "Signup details expired. Fill the signup form again.",
+    );
     return;
   }
 
@@ -1046,7 +1058,10 @@ otpForm?.addEventListener("submit", async (e) => {
 
 resendOtpBtn?.addEventListener("click", async () => {
   if (!pendingSignupPayload) {
-    setOtpStatus("error", "Signup details expired. Fill the signup form again.");
+    setOtpStatus(
+      "error",
+      "Signup details expired. Fill the signup form again.",
+    );
     return;
   }
 

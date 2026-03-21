@@ -16,7 +16,8 @@ const nodemailer = require("nodemailer");
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || "3000", 10);
+const HOST = process.env.HOST || "0.0.0.0";
 const PYTHON_BIN =
   process.env.PYTHON_BIN ||
   "/Library/Developer/CommandLineTools/usr/bin/python3";
@@ -2272,9 +2273,9 @@ async function startServer() {
     console.error("⚠️ Face auth worker warmup failed:", error.message);
   }
   console.log("🌐 Starting HTTP server...");
-  app.listen(PORT, () => {
+  app.listen(PORT, HOST, () => {
     const status = dbReady ? "FULL (DB OK)" : "LITE (no DB)";
-    console.log(`\n🎵 MusicEra on http://localhost:${PORT} [${status}]`);
+    console.log(`\n🎵 MusicEra on http://${HOST}:${PORT} [${status}]`);
     console.log("✅ Ready! Open browser.");
   });
 }

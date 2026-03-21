@@ -1,4 +1,11 @@
-const FACE_AUTH_API_URL = "http://localhost:3000/api";
+const FACE_AUTH_API_BASE =
+  window.MUSICERA_API_BASE ||
+  localStorage.getItem("MUSICERA_API_BASE") ||
+  (window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
+    ? "http://localhost:3000"
+    : `${window.location.origin}`);
+const FACE_AUTH_API_URL = `${FACE_AUTH_API_BASE}/api`;
 const FACE_AUTH_MODEL_URLS = [
   "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model",
   "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models",
@@ -361,7 +368,10 @@ async function collectFaceAuthFrames(activeToken) {
 async function submitFaceAuthFrames(frames, setupButton) {
   const userData = getStoredUserData();
   if (!userData?.email) {
-    updateFaceAuthStatus("error", "User session is missing. Please log in again.");
+    updateFaceAuthStatus(
+      "error",
+      "User session is missing. Please log in again.",
+    );
     faceAuthMenuCaptureInProgress = false;
     faceAuthMenuStableDetectionCount = 0;
     return;
@@ -581,7 +591,11 @@ function initFaceAuthMenu() {
   const dropdown = document.getElementById("navbarDropdown");
   const logoutButton = dropdown?.querySelector(".navbar-logout");
 
-  if (!dropdown || !logoutButton || document.getElementById("navbarFaceSetupBtn")) {
+  if (
+    !dropdown ||
+    !logoutButton ||
+    document.getElementById("navbarFaceSetupBtn")
+  ) {
     return;
   }
 
