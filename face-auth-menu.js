@@ -396,8 +396,20 @@ async function submitFaceAuthFrames(frames, setupButton) {
       }),
     });
 
-    const data = await response.json();
-    if (!data.success) {
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (parseError) {
+      if (!response.ok) {
+        throw new Error(
+          `Server error ${response.status}. Check API base: ${FACE_AUTH_API_BASE}`,
+        );
+      }
+      throw parseError;
+    }
+
+    if (!response.ok || !data.success) {
       throw new Error(data.message || "Could not save Face ID.");
     }
 

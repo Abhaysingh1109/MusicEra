@@ -168,7 +168,18 @@ async function requestSignupOtp(signupPayload, isResend = false) {
       body: JSON.stringify(signupPayload),
     });
 
-    const data = await response.json();
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (parseError) {
+      if (!response.ok) {
+        throw new Error(
+          `Server returned ${response.status}. API base: ${API_BASE}`,
+        );
+      }
+      throw parseError;
+    }
 
     if (!data.success) {
       const message = data.message || "Failed to send OTP";
@@ -204,8 +215,7 @@ async function requestSignupOtp(signupPayload, isResend = false) {
     return true;
   } catch (error) {
     console.error("OTP request error:", error);
-    const message =
-      "Connection error. Make sure the server is running on port 3000.";
+    const message = `Connection error. Check API base: ${API_BASE}`;
 
     if (otpModal?.classList.contains("active")) {
       setOtpStatus("error", message);
@@ -683,9 +693,24 @@ async function submitFaceFrames(frames) {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (parseError) {
+      if (!response.ok) {
+        updateFaceStatus(
+          "error",
+          `Server error ${response.status}. Check API base settings.`,
+        );
+        captureInProgress = false;
+        stableDetectionCount = 0;
+        return;
+      }
+      throw parseError;
+    }
 
-    if (!data.success) {
+    if (!response.ok || !data.success) {
       updateFaceStatus("error", data.message || "Face verification failed.");
       captureInProgress = false;
       stableDetectionCount = 0;
@@ -732,7 +757,10 @@ async function submitFaceFrames(frames) {
     }, 1200);
   } catch (error) {
     console.error("Face verification error:", error);
-    updateFaceStatus("error", "Connection error. Please try again.");
+    updateFaceStatus(
+      "error",
+      `Connection error. Verify backend URL in api-config.js (${API_BASE}).`,
+    );
     captureInProgress = false;
     stableDetectionCount = 0;
   }
@@ -966,7 +994,7 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
     }
   } catch (error) {
     console.error("Login error:", error);
-    alert("Connection error. Make sure the server is running on port 3000.");
+    alert(`Connection error. Check backend API base: ${API_BASE}`);
   }
 });
 
@@ -1047,10 +1075,7 @@ otpForm?.addEventListener("submit", async (e) => {
     document.getElementById("signupForm")?.reset();
   } catch (error) {
     console.error("OTP verification error:", error);
-    setOtpStatus(
-      "error",
-      "Connection error. Make sure the server is running on port 3000.",
-    );
+    setOtpStatus("error", `Connection error. Check API base: ${API_BASE}`);
   } finally {
     if (verifyOtpBtn) verifyOtpBtn.disabled = false;
   }
