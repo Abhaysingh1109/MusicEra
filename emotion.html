@@ -1126,17 +1126,29 @@
     <script src="api-config.js?v=20260321" defer></script>
     <script src="face-auth-menu.js?v=20260321" defer></script>
     <script>
-      const API_BASE = String(
+      const isLocalhostClient =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1";
+      const candidateApiBase = String(
         window.MUSICERA_API_BASE ||
           localStorage.getItem("MUSICERA_API_BASE") ||
-          (window.location.hostname === "localhost" ||
-          window.location.hostname === "127.0.0.1"
-            ? "http://localhost:3000"
-            : ""),
+          "",
       )
         .trim()
         .replace(/\/+$/, "")
         .replace(/\/api$/i, "");
+      const isStaleLocalApiBase =
+        isLocalhostClient &&
+        (candidateApiBase === "http://localhost:3000" ||
+          candidateApiBase === "http://127.0.0.1:3000");
+
+      if (isStaleLocalApiBase) {
+        localStorage.removeItem("MUSICERA_API_BASE");
+      }
+
+      const API_BASE =
+        (isStaleLocalApiBase ? "" : candidateApiBase) ||
+        (isLocalhostClient ? "http://localhost:3001" : "");
       const API_URL = `${API_BASE}/api`;
       const emotionModal = document.getElementById("emotionModal");
       const historyModal = document.getElementById("historyModal");
@@ -1171,6 +1183,7 @@
       let scanCount = 0;
       let emotionScansList = [];
       let averageEmotion = null;
+      let latestDetectedMood = "";
       let selectedEras = [];
       let selectedLanguages = [];
       const MAX_SCANS_FOR_RECOMMENDATION = 5;
@@ -1357,6 +1370,13 @@
             (await detectEmotionInBrowser()) || (await detectEmotionOnServer());
 
           const smoothedResult = smoothEmotionResult(result.emotions || []);
+          const normalizedDominantMood = normalizeValidMood(
+            smoothedResult.dominantEmotion || result.dominantEmotion,
+          );
+          if (normalizedDominantMood) {
+            latestDetectedMood = normalizedDominantMood;
+            persistLatestMoodSnapshot(normalizedDominantMood);
+          }
           const dominantEmotion = formatEmotionLabel(
             smoothedResult.dominantEmotion ||
               result.dominantEmotion ||
@@ -1522,7 +1542,9 @@
       function goToDashboard() {
         sessionStorage.setItem("fromPage", "emotion.html");
         const recentMood = normalizeValidMood(
-          averageEmotion || emotionScansList[emotionScansList.length - 1],
+          latestDetectedMood ||
+            emotionScansList[emotionScansList.length - 1] ||
+            averageEmotion,
         );
         if (recentMood) {
           persistLatestMoodSnapshot(recentMood);
@@ -1871,17 +1893,21 @@
             await calculateAverageEmotion();
           }
 
-          averageEmotion = normalizeValidMood(averageEmotion);
+          const resolvedMood = normalizeValidMood(
+            latestDetectedMood ||
+              emotionScansList[emotionScansList.length - 1] ||
+              averageEmotion,
+          );
 
-          if (!averageEmotion) {
+          if (!resolvedMood) {
             alert("Could not determine your mood. Please try again.");
             return;
           }
 
           // Store recommendation data in session
           sessionStorage.setItem("fromPage", "emotion.html");
-          sessionStorage.setItem("moodForRecommendation", averageEmotion);
-          persistLatestMoodSnapshot(averageEmotion);
+          sessionStorage.setItem("moodForRecommendation", resolvedMood);
+          persistLatestMoodSnapshot(resolvedMood);
           sessionStorage.setItem("selectedEras", JSON.stringify(selectedEras));
           sessionStorage.setItem(
             "selectedLanguages",
@@ -1890,7 +1916,7 @@
 
           // Close modals and redirect to dashboard
           closeRecommendation();
-          window.location.href = "dashboard.html?mood=" + averageEmotion;
+          window.location.href = "dashboard.html?mood=" + resolvedMood;
         } catch (error) {
           console.error("Error getting recommendations:", error);
           alert("Could not get recommendations. Please try again.");
