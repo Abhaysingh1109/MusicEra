@@ -26,6 +26,214 @@ function canUseApi() {
   return false;
 }
 
+function ensureCelebrationPopupStyles() {
+  if (document.getElementById("musiceraCelebrationStyles")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = "musiceraCelebrationStyles";
+  style.textContent = `
+    .musicera-celebration-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: radial-gradient(circle at top, rgba(37, 99, 235, 0.25), rgba(4, 8, 24, 0.86));
+      backdrop-filter: blur(5px);
+    }
+
+    .musicera-celebration-popup {
+      width: min(460px, 100%);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: linear-gradient(160deg, rgba(30, 58, 138, 0.96), rgba(109, 40, 217, 0.94));
+      color: #fff;
+      box-shadow: 0 22px 65px rgba(0, 0, 0, 0.45);
+      padding: 22px 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      animation: musiceraCelebrationEnter 320ms ease;
+    }
+
+    .musicera-celebration-popup h3 {
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+    }
+
+    .musicera-celebration-popup p {
+      margin: 0;
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .musicera-celebration-popup .spark {
+      position: absolute;
+      top: -18px;
+      font-size: 1rem;
+      opacity: 0;
+      animation: musiceraSparkFall 1700ms linear infinite;
+      pointer-events: none;
+    }
+
+    .musicera-celebration-popup .spark:nth-child(1) { left: 8%; animation-delay: 0ms; }
+    .musicera-celebration-popup .spark:nth-child(2) { left: 18%; animation-delay: 220ms; }
+    .musicera-celebration-popup .spark:nth-child(3) { left: 30%; animation-delay: 420ms; }
+    .musicera-celebration-popup .spark:nth-child(4) { left: 42%; animation-delay: 150ms; }
+    .musicera-celebration-popup .spark:nth-child(5) { left: 54%; animation-delay: 520ms; }
+    .musicera-celebration-popup .spark:nth-child(6) { left: 66%; animation-delay: 330ms; }
+    .musicera-celebration-popup .spark:nth-child(7) { left: 78%; animation-delay: 620ms; }
+    .musicera-celebration-popup .spark:nth-child(8) { left: 90%; animation-delay: 260ms; }
+
+    .musicera-celebration-button {
+      margin-top: 16px;
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 18px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #1e40af;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    @keyframes musiceraCelebrationEnter {
+      from { opacity: 0; transform: translateY(16px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes musiceraSparkFall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+      15% { opacity: 1; }
+      100% { transform: translateY(220px) rotate(340deg); opacity: 0; }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function showCelebrationPopup(title, message) {
+  ensureCelebrationPopupStyles();
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "musicera-celebration-overlay";
+
+    const popup = document.createElement("div");
+    popup.className = "musicera-celebration-popup";
+
+    for (let i = 0; i < 8; i += 1) {
+      const spark = document.createElement("span");
+      spark.className = "spark";
+      spark.textContent = i % 2 === 0 ? "✨" : "🎉";
+      popup.appendChild(spark);
+    }
+
+    const heading = document.createElement("h3");
+    heading.textContent = title || "Success";
+
+    const description = document.createElement("p");
+    description.textContent = message || "Operation completed.";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "musicera-celebration-button";
+    closeBtn.textContent = "Awesome";
+
+    const close = () => {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      resolve();
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" || event.key === "Enter") {
+        close();
+      }
+    };
+
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", onKeyDown);
+
+    popup.appendChild(heading);
+    popup.appendChild(description);
+    popup.appendChild(closeBtn);
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+
+    setTimeout(close, 2600);
+  });
+}
+
+function showAppPopup(title, message, options = {}) {
+  ensureCelebrationPopupStyles();
+
+  const config = {
+    tone: "info",
+    buttonText: "OK",
+    autoCloseMs: 0,
+    ...options,
+  };
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "musicera-celebration-overlay";
+
+    const popup = document.createElement("div");
+    popup.className = "musicera-celebration-popup";
+
+    if (config.tone === "error") {
+      popup.style.background =
+        "linear-gradient(160deg, rgba(127, 29, 29, 0.97), rgba(190, 24, 93, 0.95))";
+    } else if (config.tone === "warning") {
+      popup.style.background =
+        "linear-gradient(160deg, rgba(120, 53, 15, 0.97), rgba(234, 88, 12, 0.95))";
+    } else {
+      popup.style.background =
+        "linear-gradient(160deg, rgba(30, 58, 138, 0.96), rgba(67, 56, 202, 0.95))";
+    }
+
+    const heading = document.createElement("h3");
+    heading.textContent = title || "Notice";
+
+    const description = document.createElement("p");
+    description.textContent = message || "";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "musicera-celebration-button";
+    closeBtn.textContent = config.buttonText;
+
+    const close = () => {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      resolve();
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" || event.key === "Enter") {
+        close();
+      }
+    };
+
+    closeBtn.addEventListener("click", close);
+    document.addEventListener("keydown", onKeyDown);
+
+    popup.appendChild(heading);
+    popup.appendChild(description);
+    popup.appendChild(closeBtn);
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+
+    if (config.autoCloseMs > 0) {
+      setTimeout(close, config.autoCloseMs);
+    }
+  });
+}
+
 // DOM Elements
 const faceModal = document.getElementById("faceModal");
 const faceSetupModal = document.getElementById("faceSetupModal");
@@ -306,7 +514,11 @@ async function requestSignupOtp(signupPayload, isResend = false) {
   }
 
   if (!signupPayload) {
-    alert("Signup details are missing. Please fill the form again.");
+    await showAppPopup(
+      "Signup Error",
+      "Signup details are missing. Please fill the form again.",
+      { tone: "error" },
+    );
     return false;
   }
 
@@ -356,7 +568,7 @@ async function requestSignupOtp(signupPayload, isResend = false) {
       if (otpModal?.classList.contains("active")) {
         setOtpStatus("error", message);
       } else {
-        alert(message);
+        await showAppPopup("OTP Error", message, { tone: "error" });
       }
       return false;
     }
@@ -390,7 +602,7 @@ async function requestSignupOtp(signupPayload, isResend = false) {
     if (otpModal?.classList.contains("active")) {
       setOtpStatus("error", message);
     } else {
-      alert(message);
+      await showAppPopup("Connection Error", message, { tone: "error" });
     }
 
     return false;
@@ -916,7 +1128,10 @@ async function submitFaceFrames(frames) {
 
     setTimeout(() => {
       closeFaceModal();
-      alert("Face ID has been enabled for your account!");
+      showCelebrationPopup(
+        "Face ID Enabled",
+        "Face ID has been enabled for your account!",
+      );
 
       if (currentMode === "signup-setup") {
         switchTab("login");
@@ -1109,8 +1324,10 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   if (!canUseApi()) {
-    alert(
+    await showAppPopup(
+      "Backend Not Configured",
       "Backend API is not configured. Update api-config.js with your backend URL.",
+      { tone: "error" },
     );
     return;
   }
@@ -1118,8 +1335,10 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
   // Check if face login is enabled
   const faceLoginToggleEl = document.getElementById("faceLoginToggle");
   if (faceLoginToggleEl && faceLoginToggleEl.checked) {
-    alert(
-      "Please use Face ID to login, or turn off the toggle to use email/password",
+    await showAppPopup(
+      "Face Login Enabled",
+      "Please use Face ID to login, or turn off the toggle to use email/password.",
+      { tone: "warning" },
     );
     return;
   }
@@ -1178,11 +1397,17 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
       // Redirect to emotion center
       window.location.href = "emotion.html";
     } else {
-      alert(data.message);
+      await showAppPopup("Login Failed", data.message || "Login failed.", {
+        tone: "error",
+      });
     }
   } catch (error) {
     console.error("Login error:", error);
-    alert(`Connection error. Check backend API base: ${API_BASE}`);
+    await showAppPopup(
+      "Connection Error",
+      `Connection error. Check backend API base: ${API_BASE}`,
+      { tone: "error" },
+    );
   }
 });
 
@@ -1200,17 +1425,27 @@ signupForm?.addEventListener("submit", async (e) => {
   ).value;
 
   if (!isSignupEmailEligible) {
-    alert("Please enter a new email address that is not already registered.");
+    await showAppPopup(
+      "Email Required",
+      "Please enter a new email address that is not already registered.",
+      { tone: "warning" },
+    );
     return;
   }
 
   if (password !== confirmPassword) {
-    alert("Passwords do not match!");
+    await showAppPopup("Password Mismatch", "Passwords do not match!", {
+      tone: "warning",
+    });
     return;
   }
 
   if (password.length < 6) {
-    alert("Password must be at least 6 characters.");
+    await showAppPopup(
+      "Weak Password",
+      "Password must be at least 6 characters.",
+      { tone: "warning" },
+    );
     return;
   }
 

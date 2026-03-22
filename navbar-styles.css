@@ -218,6 +218,29 @@ body.navbar-menu-open .navbar-hamburger {
     transform: translateY(-1px);
 }
 
+.navbar-account-btn {
+    width: 100%;
+    background: rgba(59, 130, 246, 0.14);
+    border: 1px solid rgba(59, 130, 246, 0.45);
+    color: var(--light);
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: var(--transition);
+    font-family: var(--font-body);
+    margin-bottom: 0.75rem;
+}
+
+.navbar-account-btn:hover {
+    background: rgba(59, 130, 246, 0.24);
+    border-color: rgba(59, 130, 246, 0.62);
+    transform: translateY(-1px);
+}
+
 .navbar-logout:hover {
     background: var(--error);
     color: white;
@@ -324,6 +347,141 @@ body.navbar-menu-open .navbar-hamburger {
     background: rgba(255, 255, 255, 0.06);
     color: rgba(255, 255, 255, 0.82);
     font-size: 0.95rem;
+}
+
+.my-account-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 10, 24, 0.82);
+    backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 2100;
+}
+
+.my-account-modal.active {
+    display: flex;
+}
+
+.my-account-panel {
+    width: min(560px, 100%);
+    background: linear-gradient(180deg, rgba(16, 22, 48, 0.98), rgba(9, 12, 28, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 22px;
+    padding: 22px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+    position: relative;
+}
+
+.my-account-panel h3 {
+    margin: 0;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-heading);
+}
+
+.my-account-note {
+    margin: 10px 0 16px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.94rem;
+}
+
+.my-account-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    cursor: pointer;
+}
+
+.my-account-status {
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    font-size: 0.9rem;
+}
+
+.my-account-status.loading {
+    background: rgba(59, 130, 246, 0.18);
+    color: #bfdbfe;
+}
+
+.my-account-status.success {
+    background: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+}
+
+.my-account-status.error {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fca5a5;
+}
+
+.my-account-details {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.my-account-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.my-account-row span {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.88rem;
+}
+
+.my-account-row strong {
+    color: #ffffff;
+    text-align: right;
+    font-size: 0.92rem;
+}
+
+.delete-account-btn {
+    width: 100%;
+    border: 1px solid rgba(239, 68, 68, 0.65);
+    background: rgba(239, 68, 68, 0.2);
+    color: #fecaca;
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--font-body);
+    transition: var(--transition);
+}
+
+.delete-account-btn:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.32);
+    color: #ffffff;
+}
+
+.delete-account-btn:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+body.my-account-open {
+    overflow: hidden;
 }
 
 .face-auth-status.success {
