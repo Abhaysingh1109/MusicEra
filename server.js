@@ -1316,6 +1316,171 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+app.get("/api/account", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const userId = Number(req.query?.userId) || null;
+    const email = normalizeEmail(req.query?.email);
+
+    if (!userId && !email) {
+      return res.status(400).json({
+        success: false,
+        message: "userId or email is required",
+      });
+    }
+
+    const identity = await resolveUserIdentity(userId, email);
+    if (!identity.userId) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const userResult = await pool.query(
+      `SELECT id, name, email, created_at,
+              CASE
+                WHEN face_descriptor IS NOT NULL
+                  AND face_descriptor != 'null'
+                  AND LENGTH(TRIM(face_descriptor)) > 10
+                THEN TRUE
+                ELSE FALSE
+              END AS has_face
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [identity.userId],
+    );
+
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const preferencesResult = await pool.query(
+      `SELECT preferred_eras, preferred_languages
+       FROM user_preferences
+       WHERE user_id = $1
+       LIMIT 1`,
+      [identity.userId],
+    );
+
+    const preferences = preferencesResult.rows[0] || {};
+
+    return res.json({
+      success: true,
+      account: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        hasFace: Boolean(user.has_face),
+        createdAt: user.created_at,
+        preferredEras: preferences.preferred_eras || [],
+        preferredLanguages: preferences.preferred_languages || [],
+      },
+    });
+  } catch (error) {
+    console.error("Get account error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch account details",
+    });
+  }
+});
+
+app.delete("/api/account", async (req, res) => {
+  let client = null;
+
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    client = await pool.connect();
+
+    const incomingUserId = Number(req.body?.userId) || null;
+    const incomingEmail = normalizeEmail(req.body?.email);
+
+    if (!incomingUserId && !incomingEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "userId or email is required",
+      });
+    }
+
+    const identity = await resolveUserIdentity(incomingUserId, incomingEmail);
+    if (!identity.userId || !identity.email) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await client.query("BEGIN");
+
+    await client.query("DELETE FROM face_data WHERE user_id = $1", [
+      identity.userId,
+    ]);
+    await client.query("DELETE FROM user_preferences WHERE user_id = $1", [
+      identity.userId,
+    ]);
+    await client.query("DELETE FROM emotion_history WHERE user_id = $1", [
+      identity.userId,
+    ]);
+    await client.query("DELETE FROM user_view_history WHERE user_id = $1", [
+      identity.userId,
+    ]);
+    await client.query("DELETE FROM email_verification_otps WHERE email = $1", [
+      identity.email,
+    ]);
+
+    const deleteUserResult = await client.query(
+      "DELETE FROM users WHERE id = $1 RETURNING id",
+      [identity.userId],
+    );
+
+    if (!deleteUserResult.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await client.query("COMMIT");
+
+    return res.json({
+      success: true,
+      message: "Account deleted permanently",
+    });
+  } catch (error) {
+    if (client) {
+      await client.query("ROLLBACK").catch(() => {});
+    }
+    console.error("Delete account error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete account",
+    });
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+});
+
 app.post("/api/face-login", async (req, res) => {
   const tempImagePaths = [];
 

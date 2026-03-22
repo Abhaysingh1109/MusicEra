@@ -229,6 +229,10 @@
           <i class="fas fa-heart"></i>
           My Playlist
         </button>
+        <button class="navbar-account-btn" onclick="openMyAccount()">
+          <i class="fas fa-user-gear"></i>
+          My Account
+        </button>
         <button class="navbar-logout" onclick="logout()">
           <i class="fas fa-sign-out-alt"></i>
           Logout
@@ -481,6 +485,44 @@
 
         <!-- Search Results -->
         <div id="searchResults" class="search-results"></div>
+
+        <div class="my-account-modal" id="myAccountModal" aria-hidden="true">
+          <div
+            class="my-account-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="My account details"
+          >
+            <button
+              class="my-account-close"
+              id="myAccountCloseBtn"
+              type="button"
+              aria-label="Close account details"
+            >
+              <i class="fas fa-times"></i>
+            </button>
+
+            <h3><i class="fas fa-user-circle"></i> My Account</h3>
+            <p class="my-account-note">
+              View your saved details and manage your account.
+            </p>
+
+            <div class="my-account-status" id="myAccountStatus">
+              Waiting to load account details...
+            </div>
+            <div class="my-account-details" id="myAccountDetails"></div>
+
+            <button
+              class="delete-account-btn"
+              id="deleteAccountBtn"
+              type="button"
+            >
+              <i class="fas fa-trash"></i>
+              Delete Account Permanently
+            </button>
+          </div>
+        </div>
+
         <div id="noResultsMsg" class="no-results" style="display: none">
           <i class="fas fa-search"></i>
           <h3>No songs found</h3>
@@ -638,6 +680,7 @@
       });
     </script>
     <script src="api-config.js?v=20260321" defer></script>
+    <script src="my-account-menu.js?v=20260322" defer></script>
     <script src="face-auth-menu.js?v=20260321" defer></script>
     <script src="dashboard.js?v=20260321" defer></script>
   </body>
