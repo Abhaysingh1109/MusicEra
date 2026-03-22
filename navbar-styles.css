@@ -195,6 +195,29 @@ body.navbar-menu-open .navbar-hamburger {
     font-family: var(--font-body);
 }
 
+.navbar-menu-action {
+    width: 100%;
+    background: rgba(236, 72, 153, 0.12);
+    border: 1px solid rgba(236, 72, 153, 0.38);
+    color: var(--light);
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: var(--transition);
+    font-family: var(--font-body);
+    margin-bottom: 0.75rem;
+}
+
+.navbar-menu-action:hover {
+    background: rgba(236, 72, 153, 0.24);
+    border-color: rgba(236, 72, 153, 0.55);
+    transform: translateY(-1px);
+}
+
 .navbar-logout:hover {
     background: var(--error);
     color: white;
