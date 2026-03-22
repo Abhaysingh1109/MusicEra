@@ -1233,16 +1233,20 @@
         const dropdown = document.getElementById("navbarDropdown");
         const navbar = document.getElementById("musicera-navbar");
 
+        function setNavbarMenuState(isOpen) {
+          hamburger.classList.toggle("active", isOpen);
+          dropdown.classList.toggle("active", isOpen);
+          document.body.classList.toggle("navbar-menu-open", isOpen);
+        }
+
         hamburger.addEventListener("click", () => {
-          hamburger.classList.toggle("active");
-          dropdown.classList.toggle("active");
+          setNavbarMenuState(!dropdown.classList.contains("active"));
         });
 
         // Close dropdown on outside click
         document.addEventListener("click", (e) => {
           if (!navbar.contains(e.target)) {
-            hamburger.classList.remove("active");
-            dropdown.classList.remove("active");
+            setNavbarMenuState(false);
           }
         });
 
