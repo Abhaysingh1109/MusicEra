@@ -241,6 +241,20 @@ function isFaceAuthInsideGuide(box) {
   );
 }
 
+function closeNavbarMenuForFaceAuth() {
+  const dropdown = document.getElementById("navbarDropdown");
+  const hamburger = document.getElementById("navbarToggle");
+
+  if (dropdown) {
+    dropdown.classList.remove("active");
+  }
+  if (hamburger) {
+    hamburger.classList.remove("active");
+  }
+
+  document.body.classList.remove("navbar-menu-open");
+}
+
 function drawFaceAuthOverlay(detection) {
   const { canvas } = getFaceAuthElements();
   if (!canvas) return;
@@ -561,6 +575,8 @@ async function detectFaceAuthFace(setupButton) {
 async function openFaceAuthModal(setupButton) {
   const { modal, video } = getFaceAuthElements();
   if (!modal || !video) return;
+
+  closeNavbarMenuForFaceAuth();
 
   modal.classList.add("active");
   clearFaceAuthOverlay();
