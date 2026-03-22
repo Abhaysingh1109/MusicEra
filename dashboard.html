@@ -225,6 +225,10 @@
             </div>
           </div>
         </div>
+        <button class="navbar-menu-action" onclick="openMyPlaylist()">
+          <i class="fas fa-heart"></i>
+          My Playlist
+        </button>
         <button class="navbar-logout" onclick="logout()">
           <i class="fas fa-sign-out-alt"></i>
           Logout
@@ -357,6 +361,124 @@
           <span id="resultsCount">0 results</span>
         </div>
 
+        <div class="playlist-modal" id="playlistModal" aria-hidden="true">
+          <div
+            class="playlist-modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Your playlists"
+          >
+            <button
+              class="playlist-modal-close"
+              type="button"
+              onclick="closeMyPlaylist()"
+              aria-label="Close playlist"
+            >
+              <i class="fas fa-times"></i>
+            </button>
+
+            <section
+              class="playlist-panel"
+              id="playlistPanel"
+              aria-label="User playlist"
+            >
+              <div class="playlist-panel-header">
+                <h3><i class="fas fa-heart"></i> Your Playlists</h3>
+                <div class="playlist-panel-actions">
+                  <span id="playlistCount">0 songs</span>
+                  <button
+                    id="clearPlaylistBtn"
+                    class="playlist-clear-btn"
+                    type="button"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div class="playlist-toolbar">
+                <select
+                  id="playlistSelect"
+                  class="playlist-select"
+                  aria-label="Choose playlist"
+                ></select>
+                <button
+                  id="createPlaylistBtn"
+                  class="playlist-control-btn"
+                  type="button"
+                >
+                  <i class="fas fa-plus"></i> New
+                </button>
+                <button
+                  id="deletePlaylistBtn"
+                  class="playlist-control-btn danger"
+                  type="button"
+                >
+                  <i class="fas fa-trash"></i> Delete
+                </button>
+              </div>
+
+              <div class="playlist-io-row">
+                <button
+                  id="exportPlaylistBtn"
+                  class="playlist-io-btn"
+                  type="button"
+                >
+                  <i class="fas fa-file-export"></i> Export JSON
+                </button>
+                <button
+                  id="importPlaylistBtn"
+                  class="playlist-io-btn"
+                  type="button"
+                >
+                  <i class="fas fa-file-import"></i> Import JSON
+                </button>
+                <input
+                  id="importPlaylistInput"
+                  type="file"
+                  accept="application/json"
+                  hidden
+                />
+              </div>
+
+              <div id="playlistItems" class="playlist-items"></div>
+            </section>
+
+            <div
+              class="create-playlist-modal"
+              id="createPlaylistModal"
+              aria-hidden="true"
+            >
+              <form
+                class="create-playlist-dialog"
+                id="createPlaylistForm"
+                autocomplete="off"
+              >
+                <h4>Create New Playlist</h4>
+                <input
+                  id="createPlaylistNameInput"
+                  type="text"
+                  maxlength="40"
+                  placeholder="Enter playlist name"
+                  aria-label="Playlist name"
+                />
+                <div class="create-playlist-actions">
+                  <button
+                    type="button"
+                    class="playlist-control-btn"
+                    id="cancelCreatePlaylistBtn"
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" class="playlist-control-btn">
+                    Create
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
         <!-- Search Results -->
         <div id="searchResults" class="search-results"></div>
         <div id="noResultsMsg" class="no-results" style="display: none">
@@ -380,6 +502,7 @@
         const hamburger = document.getElementById("navbarToggle");
         const dropdown = document.getElementById("navbarDropdown");
         const navbar = document.getElementById("musicera-navbar");
+        const playlistModal = document.getElementById("playlistModal");
 
         function setNavbarMenuState(isOpen) {
           hamburger.classList.toggle("active", isOpen);
@@ -395,6 +518,23 @@
         document.addEventListener("click", (e) => {
           if (!navbar.contains(e.target)) {
             setNavbarMenuState(false);
+          }
+        });
+
+        if (playlistModal) {
+          playlistModal.addEventListener("click", (event) => {
+            if (event.target === playlistModal) {
+              closeMyPlaylist();
+            }
+          });
+        }
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            if (typeof closeCreatePlaylistModal === "function") {
+              closeCreatePlaylistModal();
+            }
+            closeMyPlaylist();
           }
         });
       });
@@ -440,6 +580,36 @@
       window.goToEmotions = function () {
         sessionStorage.removeItem("fromPage");
         window.location.href = "emotion.html";
+      };
+
+      window.openMyPlaylist = function () {
+        const playlistModal = document.getElementById("playlistModal");
+        if (playlistModal) {
+          playlistModal.classList.add("active");
+          playlistModal.setAttribute("aria-hidden", "false");
+          document.body.classList.add("playlist-modal-open");
+        }
+
+        const dropdown = document.getElementById("navbarDropdown");
+        const hamburger = document.getElementById("navbarToggle");
+        if (dropdown) {
+          dropdown.classList.remove("active");
+        }
+        if (hamburger) {
+          hamburger.classList.remove("active");
+        }
+        document.body.classList.remove("navbar-menu-open");
+      };
+
+      window.closeMyPlaylist = function () {
+        const playlistModal = document.getElementById("playlistModal");
+        if (!playlistModal) {
+          return;
+        }
+
+        playlistModal.classList.remove("active");
+        playlistModal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("playlist-modal-open");
       };
 
       function handleLogoClick() {

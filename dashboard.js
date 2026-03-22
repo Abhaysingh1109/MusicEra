@@ -15,6 +15,8 @@ const API_BASE = String(
 const API_URL = `${API_BASE}/api`;
 let currentResults = [];
 let currentPlayerVideoId = null;
+let playlistState = null;
+let draggedPlaylistSongId = "";
 const DISCOVERY_QUERIES = [
   "latest hindi songs",
   "bollywood hits",
@@ -98,10 +100,29 @@ const shuffleFeedBtn = document.getElementById("shuffleFeedBtn");
 const recommendationTitle = document.getElementById("recommendationTitle");
 const genreChips = document.querySelectorAll(".genre-chip");
 const searchSuggestions = document.getElementById("searchSuggestions");
+const playlistItems = document.getElementById("playlistItems");
+const playlistCount = document.getElementById("playlistCount");
+const clearPlaylistBtn = document.getElementById("clearPlaylistBtn");
+const playlistSelect = document.getElementById("playlistSelect");
+const createPlaylistBtn = document.getElementById("createPlaylistBtn");
+const deletePlaylistBtn = document.getElementById("deletePlaylistBtn");
+const exportPlaylistBtn = document.getElementById("exportPlaylistBtn");
+const importPlaylistBtn = document.getElementById("importPlaylistBtn");
+const importPlaylistInput = document.getElementById("importPlaylistInput");
+const createPlaylistModal = document.getElementById("createPlaylistModal");
+const createPlaylistForm = document.getElementById("createPlaylistForm");
+const createPlaylistNameInput = document.getElementById(
+  "createPlaylistNameInput",
+);
+const cancelCreatePlaylistBtn = document.getElementById(
+  "cancelCreatePlaylistBtn",
+);
 
 let currentUser = null;
 let activeMoodFromHistory = "";
 let forcedMood = "";
+const PLAYLIST_STORAGE_PREFIX = "musicera_user_playlist";
+const PLAYLIST_SCHEMA_VERSION = 2;
 
 const VALID_MOODS = new Set([
   "happy",
@@ -170,6 +191,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   currentUser = JSON.parse(userData);
+  playlistState = loadPlaylistFromStorage();
+  renderPlaylist();
 
   // Initialize event listeners first
   if (searchInput) searchInput.focus();
@@ -482,6 +505,42 @@ function initEventListeners() {
     });
   }
   if (clearBtn) clearBtn.addEventListener("click", clearSearch);
+  if (clearPlaylistBtn) {
+    clearPlaylistBtn.addEventListener("click", clearPlaylist);
+  }
+  if (playlistSelect) {
+    playlistSelect.addEventListener("change", (event) => {
+      changeActivePlaylist(event.target.value);
+    });
+  }
+  if (createPlaylistBtn) {
+    createPlaylistBtn.addEventListener("click", createPlaylist);
+  }
+  if (createPlaylistForm) {
+    createPlaylistForm.addEventListener("submit", submitCreatePlaylist);
+  }
+  if (cancelCreatePlaylistBtn) {
+    cancelCreatePlaylistBtn.addEventListener("click", closeCreatePlaylistModal);
+  }
+  if (createPlaylistModal) {
+    createPlaylistModal.addEventListener("click", (event) => {
+      if (event.target === createPlaylistModal) {
+        closeCreatePlaylistModal();
+      }
+    });
+  }
+  if (deletePlaylistBtn) {
+    deletePlaylistBtn.addEventListener("click", deleteActivePlaylist);
+  }
+  if (exportPlaylistBtn) {
+    exportPlaylistBtn.addEventListener("click", exportActivePlaylistAsJson);
+  }
+  if (importPlaylistBtn && importPlaylistInput) {
+    importPlaylistBtn.addEventListener("click", () =>
+      importPlaylistInput.click(),
+    );
+    importPlaylistInput.addEventListener("change", handlePlaylistImport);
+  }
 
   document.addEventListener("click", (event) => {
     if (!searchSuggestions || !searchInput) {
@@ -497,6 +556,619 @@ function initEventListeners() {
       hideSearchSuggestions();
     }
   });
+}
+
+function getPlaylistStorageKey() {
+  const userKey = String(
+    currentUser?.id || currentUser?.email || currentUser?.name || "guest",
+  )
+    .trim()
+    .toLowerCase();
+  return `${PLAYLIST_STORAGE_PREFIX}:${userKey}`;
+}
+
+function generatePlaylistId() {
+  return `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function sanitizePlaylistName(name, fallback = "Playlist") {
+  const normalized = String(name || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized || fallback;
+}
+
+function normalizeSongData(song) {
+  return {
+    id: String(song?.id || "").trim(),
+    title: String(song?.title || "").trim(),
+    artist: String(song?.artist || "Unknown Artist").trim(),
+    thumbnail: String(song?.thumbnail || "").trim(),
+    url: String(song?.url || "").trim(),
+    type: String(song?.type || "youtube").trim(),
+  };
+}
+
+function createDefaultPlaylistState(initialSongs = []) {
+  const defaultPlaylistId = generatePlaylistId();
+  return {
+    version: PLAYLIST_SCHEMA_VERSION,
+    activePlaylistId: defaultPlaylistId,
+    playlists: [
+      {
+        id: defaultPlaylistId,
+        name: "Favorites",
+        songs: initialSongs,
+      },
+    ],
+  };
+}
+
+function loadPlaylistFromStorage() {
+  const key = getPlaylistStorageKey();
+  const rawValue = localStorage.getItem(key);
+
+  if (!rawValue) {
+    return createDefaultPlaylistState();
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+
+    if (Array.isArray(parsed)) {
+      const migratedSongs = parsed
+        .map((song) => normalizeSongData(song))
+        .filter((song) => song.id && song.title);
+      return createDefaultPlaylistState(migratedSongs);
+    }
+
+    const rawPlaylists = Array.isArray(parsed?.playlists)
+      ? parsed.playlists
+      : [];
+    const playlists = rawPlaylists
+      .map((playlist) => {
+        const playlistId =
+          String(playlist?.id || "").trim() || generatePlaylistId();
+        const playlistName = sanitizePlaylistName(playlist?.name, "Playlist");
+        const songs = Array.isArray(playlist?.songs)
+          ? playlist.songs
+              .map((song) => normalizeSongData(song))
+              .filter((song) => song.id && song.title)
+          : [];
+
+        return {
+          id: playlistId,
+          name: playlistName,
+          songs,
+        };
+      })
+      .filter((playlist) => playlist.id);
+
+    if (playlists.length === 0) {
+      return createDefaultPlaylistState();
+    }
+
+    const parsedActiveId = String(parsed?.activePlaylistId || "").trim();
+    const hasActivePlaylist = playlists.some(
+      (playlist) => playlist.id === parsedActiveId,
+    );
+
+    return {
+      version: PLAYLIST_SCHEMA_VERSION,
+      activePlaylistId: hasActivePlaylist ? parsedActiveId : playlists[0].id,
+      playlists,
+    };
+  } catch (error) {
+    console.warn("Unable to parse playlist storage:", error);
+    return createDefaultPlaylistState();
+  }
+}
+
+function persistPlaylist() {
+  if (!playlistState) {
+    return;
+  }
+  localStorage.setItem(getPlaylistStorageKey(), JSON.stringify(playlistState));
+}
+
+function getActivePlaylist() {
+  if (!playlistState || !Array.isArray(playlistState.playlists)) {
+    return null;
+  }
+
+  return (
+    playlistState.playlists.find(
+      (playlist) => playlist.id === playlistState.activePlaylistId,
+    ) ||
+    playlistState.playlists[0] ||
+    null
+  );
+}
+
+function getActivePlaylistSongs() {
+  return getActivePlaylist()?.songs || [];
+}
+
+function isSongInPlaylist(songId) {
+  return getActivePlaylistSongs().some((song) => song.id === songId);
+}
+
+function getSongPayload(video) {
+  const songId = String(video?.id || video?.videoId || "").trim();
+  return {
+    id: songId,
+    title: String(video?.title || "Untitled Song").trim(),
+    artist: String(
+      video?.channelTitle ||
+        video?.channel ||
+        video?.artist ||
+        "Unknown Artist",
+    ).trim(),
+    thumbnail: String(video?.thumbnail || "").trim(),
+    url: String(video?.url || "").trim(),
+    type: String(video?.type || "youtube").trim(),
+  };
+}
+
+function addSongToPlaylistById(songId) {
+  const targetSongId = String(songId || "").trim();
+  if (!targetSongId) {
+    return;
+  }
+
+  const matchedVideo = currentResults.find(
+    (item) => String(item?.id || item?.videoId || "").trim() === targetSongId,
+  );
+
+  if (!matchedVideo) {
+    showNotification("Song not found in current results", "warning");
+    return;
+  }
+
+  if (isSongInPlaylist(targetSongId)) {
+    showNotification("Song already in your playlist", "info");
+    return;
+  }
+
+  const activePlaylist = getActivePlaylist();
+  if (!activePlaylist) {
+    return;
+  }
+
+  activePlaylist.songs.unshift(getSongPayload(matchedVideo));
+  persistPlaylist();
+  renderPlaylist();
+  updateResultCardPlaylistStates();
+  showNotification(`Added to ${activePlaylist.name}`, "success");
+}
+
+function removeSongFromPlaylist(songId) {
+  const targetSongId = String(songId || "").trim();
+  const activePlaylist = getActivePlaylist();
+  if (!activePlaylist) {
+    return;
+  }
+
+  activePlaylist.songs = activePlaylist.songs.filter(
+    (song) => song.id !== targetSongId,
+  );
+
+  persistPlaylist();
+  renderPlaylist();
+  updateResultCardPlaylistStates();
+  showNotification("Removed from playlist", "info");
+}
+
+function clearPlaylist() {
+  const activePlaylist = getActivePlaylist();
+  if (!activePlaylist || activePlaylist.songs.length === 0) {
+    return;
+  }
+
+  activePlaylist.songs = [];
+  persistPlaylist();
+  renderPlaylist();
+  updateResultCardPlaylistStates();
+  showNotification("Playlist cleared", "info");
+}
+
+function makeUniquePlaylistName(baseName) {
+  const normalizedBase = sanitizePlaylistName(baseName, "Playlist");
+  const takenNames = new Set(
+    (playlistState?.playlists || []).map((playlist) =>
+      String(playlist.name || "").toLowerCase(),
+    ),
+  );
+
+  if (!takenNames.has(normalizedBase.toLowerCase())) {
+    return normalizedBase;
+  }
+
+  let index = 2;
+  while (takenNames.has(`${normalizedBase} ${index}`.toLowerCase())) {
+    index += 1;
+  }
+
+  return `${normalizedBase} ${index}`;
+}
+
+function createPlaylist() {
+  openCreatePlaylistModal();
+}
+
+function openCreatePlaylistModal() {
+  if (!createPlaylistModal) {
+    return;
+  }
+
+  createPlaylistModal.classList.add("active");
+  createPlaylistModal.setAttribute("aria-hidden", "false");
+
+  if (createPlaylistNameInput) {
+    createPlaylistNameInput.value = "";
+    setTimeout(() => createPlaylistNameInput.focus(), 30);
+  }
+}
+
+function closeCreatePlaylistModal() {
+  if (!createPlaylistModal) {
+    return;
+  }
+
+  createPlaylistModal.classList.remove("active");
+  createPlaylistModal.setAttribute("aria-hidden", "true");
+}
+
+function submitCreatePlaylist(event) {
+  if (event?.preventDefault) {
+    event.preventDefault();
+  }
+
+  const inputName = String(createPlaylistNameInput?.value || "").trim();
+  if (!inputName) {
+    showNotification("Please enter playlist name", "warning");
+    if (createPlaylistNameInput) {
+      createPlaylistNameInput.focus();
+    }
+    return;
+  }
+
+  const uniqueName = makeUniquePlaylistName(inputName);
+  const newPlaylist = {
+    id: generatePlaylistId(),
+    name: uniqueName,
+    songs: [],
+  };
+
+  playlistState.playlists.push(newPlaylist);
+  playlistState.activePlaylistId = newPlaylist.id;
+  persistPlaylist();
+  renderPlaylist();
+  updateResultCardPlaylistStates();
+  closeCreatePlaylistModal();
+  showNotification(`Created playlist: ${uniqueName}`, "success");
+}
+
+function deleteActivePlaylist() {
+  if (!playlistState || playlistState.playlists.length <= 1) {
+    showNotification("At least one playlist is required", "warning");
+    return;
+  }
+
+  const activePlaylist = getActivePlaylist();
+  if (!activePlaylist) {
+    return;
+  }
+
+  const shouldDelete = window.confirm(
+    `Delete playlist \"${activePlaylist.name}\"?`,
+  );
+  if (!shouldDelete) {
+    return;
+  }
+
+  playlistState.playlists = playlistState.playlists.filter(
+    (playlist) => playlist.id !== activePlaylist.id,
+  );
+  playlistState.activePlaylistId = playlistState.playlists[0].id;
+  persistPlaylist();
+  renderPlaylist();
+  updateResultCardPlaylistStates();
+  showNotification("Playlist deleted", "info");
+}
+
+function changeActivePlaylist(playlistId) {
+  const targetId = String(playlistId || "").trim();
+  if (!targetId || !playlistState) {
+    return;
+  }
+
+  const exists = playlistState.playlists.some(
+    (playlist) => playlist.id === targetId,
+  );
+  if (!exists) {
+    return;
+  }
+
+  playlistState.activePlaylistId = targetId;
+  persistPlaylist();
+  renderPlaylist();
+  updateResultCardPlaylistStates();
+}
+
+function renderPlaylistSelector() {
+  if (!playlistSelect) {
+    return;
+  }
+
+  const activePlaylist = getActivePlaylist();
+  const options = (playlistState?.playlists || [])
+    .map((playlist) => {
+      const isSelected = playlist.id === activePlaylist?.id;
+      const safeName = escapeHtml(playlist.name);
+      return `<option value="${playlist.id}" ${isSelected ? "selected" : ""}>${safeName}</option>`;
+    })
+    .join("");
+
+  playlistSelect.innerHTML = options;
+}
+
+function exportActivePlaylistAsJson() {
+  if (!playlistState || !Array.isArray(playlistState.playlists)) {
+    return;
+  }
+
+  const exportPayload = {
+    type: "musicera-playlists",
+    version: PLAYLIST_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    activePlaylistId: playlistState.activePlaylistId,
+    playlists: playlistState.playlists,
+  };
+
+  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
+    type: "application/json",
+  });
+  const objectUrl = URL.createObjectURL(blob);
+  const fileName = "musicera_playlists.json";
+
+  const downloadAnchor = document.createElement("a");
+  downloadAnchor.href = objectUrl;
+  downloadAnchor.download = fileName;
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
+  URL.revokeObjectURL(objectUrl);
+
+  showNotification("Playlists exported", "success");
+}
+
+function importPlaylistsFromJsonObject(parsedJson) {
+  if (!playlistState) {
+    return 0;
+  }
+
+  const importedPlaylists = [];
+  const activeIdFromFile = String(parsedJson?.activePlaylistId || "").trim();
+  const sourceToImportedId = new Map();
+  const existingIds = new Set((playlistState.playlists || []).map((p) => p.id));
+  const sourcePlaylists = Array.isArray(parsedJson?.playlists)
+    ? parsedJson.playlists
+    : parsedJson?.playlist
+      ? [parsedJson.playlist]
+      : Array.isArray(parsedJson)
+        ? [{ name: "Imported Playlist", songs: parsedJson }]
+        : [];
+
+  sourcePlaylists.forEach((playlist, index) => {
+    const songs = Array.isArray(playlist?.songs)
+      ? playlist.songs
+          .map((song) => normalizeSongData(song))
+          .filter((song) => song.id && song.title)
+      : [];
+
+    const sourceId = String(playlist?.id || "").trim();
+    let candidateId =
+      sourceId || `imported_${Date.now().toString(36)}_${index}`;
+    while (existingIds.has(candidateId)) {
+      candidateId = generatePlaylistId();
+    }
+    existingIds.add(candidateId);
+
+    const name = makeUniquePlaylistName(playlist?.name || "Imported Playlist");
+    sourceToImportedId.set(sourceId, candidateId);
+    importedPlaylists.push({
+      id: candidateId,
+      name,
+      songs,
+    });
+  });
+
+  if (importedPlaylists.length === 0) {
+    return 0;
+  }
+
+  playlistState.playlists.push(...importedPlaylists);
+  playlistState.activePlaylistId =
+    (activeIdFromFile && sourceToImportedId.get(activeIdFromFile)) ||
+    importedPlaylists[0].id;
+  persistPlaylist();
+  renderPlaylist();
+  updateResultCardPlaylistStates();
+  return importedPlaylists.length;
+}
+
+async function handlePlaylistImport(event) {
+  const file = event?.target?.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  try {
+    const textContent = await file.text();
+    const parsedJson = JSON.parse(textContent);
+    const importedCount = importPlaylistsFromJsonObject(parsedJson);
+    if (importedCount === 0) {
+      showNotification("No valid playlists found in file", "warning");
+      return;
+    }
+    showNotification(
+      `${importedCount} playlist${importedCount === 1 ? "" : "s"} imported`,
+      "success",
+    );
+  } catch (error) {
+    console.error("Playlist import failed:", error);
+    showNotification("Invalid JSON file", "error");
+  } finally {
+    if (importPlaylistInput) {
+      importPlaylistInput.value = "";
+    }
+  }
+}
+
+function moveSongInActivePlaylist(fromSongId, toSongId) {
+  const activePlaylist = getActivePlaylist();
+  if (!activePlaylist || !fromSongId || !toSongId || fromSongId === toSongId) {
+    return;
+  }
+
+  const songs = activePlaylist.songs;
+  const fromIndex = songs.findIndex((song) => song.id === fromSongId);
+  const toIndex = songs.findIndex((song) => song.id === toSongId);
+
+  if (fromIndex < 0 || toIndex < 0) {
+    return;
+  }
+
+  const [movedSong] = songs.splice(fromIndex, 1);
+  songs.splice(toIndex, 0, movedSong);
+
+  persistPlaylist();
+  renderPlaylist();
+}
+
+function updatePlaylistCount() {
+  if (!playlistCount) {
+    return;
+  }
+  const activeSongs = getActivePlaylistSongs();
+  playlistCount.textContent = `${activeSongs.length} ${activeSongs.length === 1 ? "song" : "songs"}`;
+}
+
+function renderPlaylist() {
+  if (!playlistItems) {
+    return;
+  }
+
+  renderPlaylistSelector();
+  updatePlaylistCount();
+  const activePlaylist = getActivePlaylist();
+  const activeSongs = activePlaylist?.songs || [];
+
+  if (activeSongs.length === 0) {
+    playlistItems.innerHTML = `
+      <div class="playlist-empty">
+        <i class="fas fa-music"></i>
+        <p>Add songs from search results to build this playlist.</p>
+      </div>
+    `;
+    return;
+  }
+
+  playlistItems.innerHTML = activeSongs
+    .map((song) => {
+      const safeTitle = escapeHtml(song.title);
+      const safeArtist = escapeHtml(song.artist);
+      const safeThumbnail = escapeHtmlAttr(song.thumbnail);
+
+      return `
+        <article class="playlist-item" draggable="true" data-song-id="${song.id}">
+          <span class="playlist-drag-handle" title="Drag to reorder">
+            <i class="fas fa-grip-lines"></i>
+          </span>
+          <img src="${safeThumbnail}" alt="${safeTitle}" loading="lazy" />
+          <div class="playlist-item-info">
+            <h4>${truncateText(safeTitle, 45)}</h4>
+            <p>${safeArtist}</p>
+          </div>
+          <div class="playlist-item-actions">
+            <button
+              type="button"
+              class="playlist-item-btn"
+              data-song-id="${escapeHtmlAttr(song.id)}"
+              onclick="playPlaylistSong(this.dataset.songId)"
+              aria-label="Play ${escapeHtmlAttr(song.title)}"
+            >
+              <i class="fas fa-play"></i>
+            </button>
+            <button
+              type="button"
+              class="playlist-item-btn remove"
+              data-song-id="${escapeHtmlAttr(song.id)}"
+              onclick="removeFromPlaylist(this.dataset.songId)"
+              aria-label="Remove ${escapeHtmlAttr(song.title)}"
+            >
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  attachPlaylistDragHandlers();
+}
+
+function attachPlaylistDragHandlers() {
+  if (!playlistItems) {
+    return;
+  }
+
+  playlistItems
+    .querySelectorAll(".playlist-item[draggable='true']")
+    .forEach((item) => {
+      item.addEventListener("dragstart", () => {
+        draggedPlaylistSongId = String(item.dataset.songId || "");
+        item.classList.add("dragging");
+      });
+
+      item.addEventListener("dragend", () => {
+        item.classList.remove("dragging");
+        playlistItems
+          .querySelectorAll(".playlist-item.drag-over")
+          .forEach((el) => el.classList.remove("drag-over"));
+        draggedPlaylistSongId = "";
+      });
+
+      item.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        item.classList.add("drag-over");
+      });
+
+      item.addEventListener("dragleave", () => {
+        item.classList.remove("drag-over");
+      });
+
+      item.addEventListener("drop", (event) => {
+        event.preventDefault();
+        item.classList.remove("drag-over");
+        const targetSongId = String(item.dataset.songId || "");
+        moveSongInActivePlaylist(draggedPlaylistSongId, targetSongId);
+      });
+    });
+}
+
+function updateResultCardPlaylistStates() {
+  document
+    .querySelectorAll(".playlist-toggle-btn[data-video-id]")
+    .forEach((button) => {
+      const targetSongId = String(button.dataset.videoId || "").trim();
+      const isSaved = isSongInPlaylist(targetSongId);
+      button.classList.toggle("saved", isSaved);
+      button.innerHTML = isSaved
+        ? '<i class="fas fa-heart"></i> Saved'
+        : '<i class="far fa-heart"></i> Add';
+    });
 }
 
 function buildLocalSearchSuggestions(query) {
@@ -861,10 +1533,20 @@ function renderResults() {
 }
 
 function createMusicCardMarkup(video) {
+  const videoId = video.id || video.videoId;
+  const isSaved = isSongInPlaylist(String(videoId || ""));
+  const rawTitle = String(video.title || "Untitled Song");
+  const rawArtist = String(
+    video.channelTitle || video.channel || video.artist || "Unknown Artist",
+  );
+  const safeTitle = escapeHtml(rawTitle);
+  const safeArtist = escapeHtml(rawArtist);
+  const safeThumbnail = escapeHtmlAttr(String(video.thumbnail || ""));
+
   return `
-        <div class="music-card" data-video-id="${video.id || video.videoId}" onclick="toggleInlinePlay('${video.id || video.videoId}')">
+        <div class="music-card" data-video-id="${videoId}" onclick="toggleInlinePlay('${videoId}')">
             <div class="card-thumbnail">
-                <img src="${video.thumbnail}" alt="${video.title}" loading="lazy">
+                <img src="${safeThumbnail}" alt="${safeTitle}" loading="lazy">
                 <div class="play-overlay">
                 <i class="fas fa-play"></i> <!-- MP3 DISABLED -->
                 </div>
@@ -877,8 +1559,17 @@ function createMusicCardMarkup(video) {
                 </div>
             </div>
             <div class="card-info">
-                <h4 class="card-title">${truncateText(video.title, 50)}</h4>
-                <p class="card-channel">${video.channelTitle || video.channel || video.artist}</p>
+                <h4 class="card-title">${truncateText(safeTitle, 50)}</h4>
+                <p class="card-channel">${safeArtist}</p>
+                <button
+                  type="button"
+                  class="playlist-toggle-btn ${isSaved ? "saved" : ""}"
+                  data-video-id="${videoId}"
+                  onclick="togglePlaylistSong(event, '${videoId}')"
+                >
+                  <i class="${isSaved ? "fas" : "far"} fa-heart"></i>
+                  ${isSaved ? "Saved" : "Add"}
+                </button>
             </div>
         </div>
     `;
@@ -1156,6 +1847,19 @@ function truncateText(text, maxLength) {
   return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeHtmlAttr(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
+}
+
 function clearPlayer() {
   if (playerContainer) {
     playerContainer.innerHTML = "";
@@ -1176,6 +1880,45 @@ window.toggleInlinePlay = function (id) {
   const playUrl = video.url;
   playTrack(id, video.title, playUrl, video.type);
   /* end MP3 DISABLED */
+};
+
+window.togglePlaylistSong = function (event, songId) {
+  if (event?.stopPropagation) {
+    event.stopPropagation();
+  }
+
+  const targetSongId = String(songId || "").trim();
+  if (!targetSongId) {
+    return;
+  }
+
+  if (isSongInPlaylist(targetSongId)) {
+    removeSongFromPlaylist(targetSongId);
+    return;
+  }
+
+  addSongToPlaylistById(targetSongId);
+};
+
+window.removeFromPlaylist = function (songId) {
+  removeSongFromPlaylist(songId);
+};
+
+window.playPlaylistSong = function (songId) {
+  const matchedSong = getActivePlaylistSongs().find(
+    (song) => song.id === songId,
+  );
+  if (!matchedSong) {
+    showNotification("Song is not available in playlist", "warning");
+    return;
+  }
+
+  playTrack(
+    matchedSong.id,
+    matchedSong.title,
+    matchedSong.url,
+    matchedSong.type,
+  );
 };
 
 function showLoading(show) {
