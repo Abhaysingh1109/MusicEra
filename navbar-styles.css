@@ -151,6 +151,50 @@ body.navbar-menu-open .navbar-hamburger {
     font-size: 1.25rem;
     color: white;
     flex-shrink: 0;
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.user-avatar.has-photo {
+    background: transparent;
+    border: 2px solid rgba(255, 255, 255, 0.22);
+    overflow: hidden;
+}
+
+.user-avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.user-avatar.avatar-upload-hint:hover {
+    transform: translateY(-1px) scale(1.03);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28);
+}
+
+.user-avatar.avatar-upload-hint::after {
+    content: attr(data-upload-hint);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%);
+    padding: 5px 8px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    line-height: 1;
+    white-space: nowrap;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    z-index: 2;
+}
+
+.user-avatar.avatar-upload-hint:hover::after {
+    opacity: 1;
 }
 
 .user-details {
@@ -239,6 +283,39 @@ body.navbar-menu-open .navbar-hamburger {
     background: rgba(59, 130, 246, 0.24);
     border-color: rgba(59, 130, 246, 0.62);
     transform: translateY(-1px);
+}
+
+.my-account-row-photo strong {
+    display: block;
+}
+
+.my-account-photo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.my-account-photo-preview,
+.my-account-photo-placeholder {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.my-account-photo-preview {
+    object-fit: cover;
+}
+
+.my-account-photo-placeholder {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 1.2rem;
 }
 
 .navbar-logout:hover {

@@ -142,6 +142,10 @@ const FACE_MATCH_FALLBACK_THRESHOLD = Number(
 const FACE_MATCH_MIN_MARGIN = Number(
   process.env.FACE_MATCH_MIN_MARGIN || "0.015",
 );
+const PROFILE_PHOTO_MAX_BYTES = Math.max(
+  50 * 1024,
+  parseInt(process.env.PROFILE_PHOTO_MAX_BYTES || `${2 * 1024 * 1024}`, 10),
+);
 
 function normalizeEmotionScores(emotions = []) {
   if (!Array.isArray(emotions)) {
@@ -260,6 +264,39 @@ function parseBase64Image(image) {
     extension,
     buffer: Buffer.from(matches[2], "base64"),
   };
+}
+
+function normalizeProfilePhotoDataUrl(image) {
+  const matches = String(image || "").match(
+    /^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/,
+  );
+
+  if (!matches) {
+    throw new Error("Invalid profile image payload");
+  }
+
+  const subtype = String(matches[1] || "")
+    .trim()
+    .toLowerCase();
+  const normalizedSubtype = subtype === "jpg" ? "jpeg" : subtype;
+  const allowedSubtypes = new Set(["jpeg", "png", "webp", "gif"]);
+
+  if (!allowedSubtypes.has(normalizedSubtype)) {
+    throw new Error("Profile photo must be JPG, PNG, WEBP, or GIF");
+  }
+
+  const buffer = Buffer.from(matches[2], "base64");
+  if (!buffer.length) {
+    throw new Error("Profile photo is empty");
+  }
+
+  if (buffer.length > PROFILE_PHOTO_MAX_BYTES) {
+    throw new Error(
+      `Profile photo exceeds ${Math.round(PROFILE_PHOTO_MAX_BYTES / (1024 * 1024))}MB limit`,
+    );
+  }
+
+  return `data:image/${normalizedSubtype};base64,${buffer.toString("base64")}`;
 }
 
 function normalizeIncomingImages(payload) {
@@ -553,9 +590,15 @@ async function initializeDatabase() {
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
                 face_descriptor TEXT,
+                profile_photo TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+    await pool.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS profile_photo TEXT
+    `);
 
     await pool.query(`
             CREATE TABLE IF NOT EXISTS face_data (
@@ -1265,7 +1308,7 @@ app.post("/api/login", async (req, res) => {
 
     // Find user by email
     const result = await pool.query(
-      "SELECT id, name, email, password, face_descriptor FROM users WHERE email = $1",
+      "SELECT id, name, email, password, face_descriptor, profile_photo FROM users WHERE email = $1",
       [email],
     );
 
@@ -1305,6 +1348,7 @@ app.post("/api/login", async (req, res) => {
         name: user.name,
         email: user.email,
         hasFace: hasFace,
+        profilePhoto: user.profile_photo || null,
       },
     });
   } catch (error) {
@@ -1344,7 +1388,7 @@ app.get("/api/account", async (req, res) => {
     }
 
     const userResult = await pool.query(
-      `SELECT id, name, email, created_at,
+      `SELECT id, name, email, created_at, profile_photo,
               CASE
                 WHEN face_descriptor IS NOT NULL
                   AND face_descriptor != 'null'
@@ -1383,6 +1427,7 @@ app.get("/api/account", async (req, res) => {
         name: user.name,
         email: user.email,
         hasFace: Boolean(user.has_face),
+        profilePhoto: user.profile_photo || null,
         createdAt: user.created_at,
         preferredEras: preferences.preferred_eras || [],
         preferredLanguages: preferences.preferred_languages || [],
@@ -1481,6 +1526,128 @@ app.delete("/api/account", async (req, res) => {
   }
 });
 
+app.post("/api/account/profile-photo", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const incomingUserId = Number(req.body?.userId) || null;
+    const incomingEmail = normalizeEmail(req.body?.email);
+    const image = String(req.body?.image || "").trim();
+
+    if (!incomingUserId && !incomingEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "userId or email is required",
+      });
+    }
+
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: "Profile image is required",
+      });
+    }
+
+    const profilePhoto = normalizeProfilePhotoDataUrl(image);
+    const identity = await resolveUserIdentity(incomingUserId, incomingEmail);
+
+    if (!identity.userId) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const updateResult = await pool.query(
+      `UPDATE users
+       SET profile_photo = $1
+       WHERE id = $2
+       RETURNING id, email, profile_photo`,
+      [profilePhoto, identity.userId],
+    );
+
+    if (!updateResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Profile photo saved",
+      profilePhoto: updateResult.rows[0].profile_photo,
+    });
+  } catch (error) {
+    const message =
+      error.message || "Failed to save profile photo. Please try again.";
+    const clientError =
+      message.includes("Invalid profile image") ||
+      message.includes("must be JPG") ||
+      message.includes("exceeds") ||
+      message.includes("empty");
+
+    console.error("Save profile photo error:", error);
+    return res.status(clientError ? 400 : 500).json({
+      success: false,
+      message,
+    });
+  }
+});
+
+app.delete("/api/account/profile-photo", async (req, res) => {
+  try {
+    if (!dbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is not available",
+      });
+    }
+
+    const incomingUserId = Number(req.body?.userId) || null;
+    const incomingEmail = normalizeEmail(req.body?.email);
+
+    if (!incomingUserId && !incomingEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "userId or email is required",
+      });
+    }
+
+    const identity = await resolveUserIdentity(incomingUserId, incomingEmail);
+    if (!identity.userId) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    await pool.query(
+      `UPDATE users
+       SET profile_photo = NULL
+       WHERE id = $1`,
+      [identity.userId],
+    );
+
+    return res.json({
+      success: true,
+      message: "Profile photo removed",
+      profilePhoto: null,
+    });
+  } catch (error) {
+    console.error("Delete profile photo error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to remove profile photo",
+    });
+  }
+});
+
 app.post("/api/face-login", async (req, res) => {
   const tempImagePaths = [];
 
@@ -1516,7 +1683,7 @@ app.post("/api/face-login", async (req, res) => {
     }
 
     const result = await pool.query(
-      "SELECT id, name, email, face_descriptor FROM users WHERE face_descriptor IS NOT NULL AND face_descriptor != 'null' AND length(face_descriptor) > 10",
+      "SELECT id, name, email, face_descriptor, profile_photo FROM users WHERE face_descriptor IS NOT NULL AND face_descriptor != 'null' AND length(face_descriptor) > 10",
     );
 
     if (result.rows.length === 0) {
@@ -1587,6 +1754,7 @@ app.post("/api/face-login", async (req, res) => {
         name: bestMatch.user.name,
         email: bestMatch.user.email,
         hasFace: true,
+        profilePhoto: bestMatch.user.profile_photo || null,
       },
       scan: {
         qualityScore: scanResult.qualityScore,
@@ -1642,7 +1810,7 @@ app.post("/api/save-face", async (req, res) => {
     }
 
     const result = await pool.query(
-      "UPDATE users SET face_descriptor = $1 WHERE email = $2 RETURNING id, name, email",
+      "UPDATE users SET face_descriptor = $1 WHERE email = $2 RETURNING id, name, email, profile_photo",
       [JSON.stringify(embedding), email],
     );
 
@@ -1663,6 +1831,7 @@ app.post("/api/save-face", async (req, res) => {
         name: result.rows[0].name,
         email: result.rows[0].email,
         hasFace: true,
+        profilePhoto: result.rows[0].profile_photo || null,
       },
       faceProfile: {
         qualityScore: enrollmentResult.qualityScore,
