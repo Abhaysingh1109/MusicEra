@@ -634,6 +634,25 @@
         margin-bottom: 20px;
       }
 
+      .preference-options.input-error-shake {
+        animation: emotionInputErrorShake 0.36s ease;
+      }
+
+      @keyframes emotionInputErrorShake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20%,
+        60% {
+          transform: translateX(-6px);
+        }
+        40%,
+        80% {
+          transform: translateX(6px);
+        }
+      }
+
       .preference-chip {
         padding: 12px 16px;
         border-radius: 16px;
@@ -1063,14 +1082,6 @@
           preferences! 🎵
         </p>
 
-        <div class="recommendation-actions">
-          <button
-            class="recommendation-btn secondary"
-            type="button"
-            onclick="setupPreferences()"
-          >
-            <i class="fas fa-sliders-h"></i> Set Preferences
-          </button>
           <button
             class="recommendation-btn primary"
             type="button"
@@ -1888,7 +1899,34 @@
         }
       }
 
+      function triggerInvalidPreferenceFeedback() {
+        const containers = [
+          document.getElementById("eraOptions"),
+          document.getElementById("languageOptions"),
+        ].filter(Boolean);
+
+        containers.forEach((container) => {
+          container.classList.remove("input-error-shake");
+          // Reflow restarts the shake on repeated invalid attempts.
+          void container.offsetWidth;
+          container.classList.add("input-error-shake");
+        });
+
+        if (
+          typeof navigator !== "undefined" &&
+          typeof navigator.vibrate === "function"
+        ) {
+          navigator.vibrate([120, 50, 120]);
+        }
+      }
+
       async function savePreferencesAndRecommend() {
+        if (selectedEras.length === 0 && selectedLanguages.length === 0) {
+          triggerInvalidPreferenceFeedback();
+          alert("Please choose at least one era or language preference.");
+          return;
+        }
+
         try {
           // Save user preferences
           const prefResponse = await fetch(`${API_URL}/user-preferences`, {

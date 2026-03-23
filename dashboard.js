@@ -1460,6 +1460,22 @@ let loadingMore = false;
 let infiniteObserver = null;
 let currentQuery = "";
 
+function triggerInvalidSearchFeedback() {
+  if (searchInput) {
+    searchInput.classList.remove("input-error-shake");
+    // Reflow ensures the shake animation restarts on repeated invalid attempts.
+    void searchInput.offsetWidth;
+    searchInput.classList.add("input-error-shake");
+  }
+
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.vibrate === "function"
+  ) {
+    navigator.vibrate([120, 50, 120]);
+  }
+}
+
 /* MP3 FEATURE DISABLED
 // Add format toggle elements
 const formatToggle = document.getElementById("formatToggle");
@@ -1481,7 +1497,8 @@ async function handleSearch(isLoadMore = false) {
   const query = searchInput.value.trim();
   const userName = getUserDisplayName();
   if (!query) {
-    showNotification("Please enter a search term", "warning");
+    triggerInvalidSearchFeedback();
+    // showNotification("Please enter a search term", "warning");
     return;
   }
 
