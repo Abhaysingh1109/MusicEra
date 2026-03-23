@@ -270,10 +270,13 @@ let detectionIntervalId = null;
 let scanToken = 0;
 let stableDetectionCount = 0;
 let captureInProgress = false;
-const FACE_LOGIN_SAMPLE_COUNT = 2;
+const FACE_LOGIN_SAMPLE_COUNT = 1;
 const FACE_ENROLL_SAMPLE_COUNT = 3;
-const FACE_LOGIN_STABLE_PASSES = 2;
+const FACE_LOGIN_STABLE_PASSES = 1;
 const FACE_ENROLL_STABLE_PASSES = 3;
+const FACE_DETECTION_INTERVAL_MS = 95;
+const FACE_LOGIN_CAPTURE_QUALITY = 0.78;
+const FACE_ENROLL_CAPTURE_QUALITY = 0.9;
 
 function getFaceSampleCount() {
   return currentMode === "login"
@@ -285,6 +288,12 @@ function getRequiredStablePasses() {
   return currentMode === "login"
     ? FACE_LOGIN_STABLE_PASSES
     : FACE_ENROLL_STABLE_PASSES;
+}
+
+function getCaptureQuality() {
+  return currentMode === "login"
+    ? FACE_LOGIN_CAPTURE_QUALITY
+    : FACE_ENROLL_CAPTURE_QUALITY;
 }
 
 // Initialize when page loads
@@ -837,8 +846,8 @@ async function startCamera() {
 
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: { ideal: 960 },
-        height: { ideal: 720 },
+        width: { ideal: currentMode === "login" ? 640 : 960 },
+        height: { ideal: currentMode === "login" ? 480 : 720 },
         facingMode: "user",
       },
     });
@@ -865,7 +874,7 @@ async function startCamera() {
         );
       }
       detectFace();
-    }, 400);
+    }, 80);
   } catch (error) {
     console.error("Error accessing camera:", error);
     updateFaceStatus(
@@ -997,7 +1006,7 @@ function captureFrame() {
   context.translate(canvas.width, 0);
   context.scale(-1, 1);
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.92);
+  return canvas.toDataURL("image/jpeg", getCaptureQuality());
 }
 
 async function collectFaceFrames(activeToken) {
@@ -1021,7 +1030,7 @@ async function collectFaceFrames(activeToken) {
 
     frames.push(frame);
     if (index < sampleCount - 1) {
-      await wait(180);
+      await wait(80);
     }
   }
 
@@ -1120,7 +1129,7 @@ async function submitFaceFrames(frames) {
       setTimeout(() => {
         closeFaceModal();
         window.location.href = "emotion.html";
-      }, 1000);
+      }, 180);
       return;
     }
 
@@ -1224,7 +1233,7 @@ async function detectFace() {
         .detectAllFaces(
           video,
           new faceapi.TinyFaceDetectorOptions({
-            inputSize: 320,
+            inputSize: 224,
             scoreThreshold: 0.5,
           }),
         )
@@ -1299,7 +1308,7 @@ async function detectFace() {
       attempts += 1;
       stableDetectionCount = 0;
     }
-  }, 180);
+  }, FACE_DETECTION_INTERVAL_MS);
 }
 
 // Update Face Status
