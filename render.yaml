@@ -12,6 +12,8 @@ services:
         value: production
       - key: PYTHON_BIN
         value: python3
+      - key: DATABASE_URL
+        sync: false
       - key: PGHOST
         sync: false
       - key: PGPORT
@@ -22,6 +24,10 @@ services:
         sync: false
       - key: PGPASSWORD
         sync: false
+      - key: PGSSL
+        value: "false"
+      - key: PGSSL_REJECT_UNAUTHORIZED
+        value: "false"
       - key: YOUTUBE_API_KEY
         sync: false
       - key: SMTP_HOST
