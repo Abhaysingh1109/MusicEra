@@ -34,12 +34,54 @@
         align-items: center;
         background: linear-gradient(
           135deg,
-          #0f0f23 0%,
-          #1a1a2e 50%,
-          #16213e 100%
+          var(--dark-bg) 0%,
+          var(--dark-secondary) 50%,
+          #1b1036 100%
         );
         position: relative;
         overflow: hidden;
+      }
+
+      .emotion-page::before {
+        content: "";
+        position: absolute;
+        inset: -20% -10%;
+        background:
+          radial-gradient(
+            circle at 20% 20%,
+            rgba(138, 43, 226, 0.24),
+            transparent 46%
+          ),
+          radial-gradient(
+            circle at 80% 70%,
+            rgba(0, 207, 255, 0.2),
+            transparent 50%
+          );
+        filter: blur(20px);
+        pointer-events: none;
+        z-index: 0;
+        animation: emotionAmbientShift 15s ease-in-out infinite alternate;
+      }
+
+      .emotion-page::after {
+        content: "";
+        position: absolute;
+        inset: -25% -15%;
+        background: conic-gradient(
+          from 120deg at 50% 50%,
+          rgba(138, 43, 226, 0.08),
+          rgba(0, 207, 255, 0.08),
+          rgba(138, 43, 226, 0.08)
+        );
+        filter: blur(46px);
+        pointer-events: none;
+        z-index: 0;
+        animation: emotionAmbientSpin 26s linear infinite;
+      }
+
+      .emotion-page > * {
+        position: relative;
+        z-index: 1;
       }
 
       .emotion-header {
@@ -58,7 +100,7 @@
 
       .emotion-logo i {
         font-size: 3rem;
-        background: linear-gradient(135deg, #6366f1, #ec4899);
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -67,7 +109,7 @@
       .emotion-title {
         font-family: "Playfair Display", serif;
         font-size: 3rem;
-        background: linear-gradient(135deg, #6366f1, #ec4899);
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -103,6 +145,8 @@
         animation: slideInUp 0.6s ease forwards;
         opacity: 0;
         transform: translateY(30px);
+        transform-style: preserve-3d;
+        will-change: transform;
       }
 
       .emotion-card:nth-child(1) {
@@ -122,20 +166,43 @@
         left: 0;
         right: 0;
         height: 4px;
-        background: linear-gradient(90deg, #6366f1, #ec4899, #6366f1);
+        background: linear-gradient(90deg, var(--primary), var(--secondary), var(--primary));
         background-size: 200% 100%;
         animation: shimmer 3s infinite;
       }
 
+      .emotion-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          125deg,
+          transparent 18%,
+          rgba(255, 255, 255, 0.16) 45%,
+          transparent 72%
+        );
+        opacity: 0;
+        transform: translateX(-120%);
+        transition: transform 0.55s ease, opacity 0.35s ease;
+        pointer-events: none;
+      }
+
       .emotion-card:hover {
-        transform: translateY(-12px);
-        box-shadow: 0 30px 60px rgba(99, 102, 241, 0.25);
-        border-color: rgba(99, 102, 241, 0.4);
+        transform: perspective(1100px) rotateX(6deg) rotateY(-6deg)
+          translateY(-12px) scale(1.01);
+        box-shadow: 0 30px 60px rgba(138, 43, 226, 0.32),
+          0 0 28px rgba(0, 207, 255, 0.18);
+        border-color: rgba(138, 43, 226, 0.52);
+      }
+
+      .emotion-card:hover::after {
+        opacity: 1;
+        transform: translateX(120%);
       }
 
       .emotion-card i {
         font-size: 4rem;
-        background: linear-gradient(135deg, #6366f1, #ec4899);
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -158,7 +225,7 @@
       }
 
       .emotion-card .btn-explore {
-        background: linear-gradient(135deg, #6366f1, #ec4899);
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
         color: white;
         border: none;
         padding: 16px 40px;
@@ -167,12 +234,13 @@
         font-weight: 600;
         cursor: pointer;
         transition: all 0.3s ease;
-        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        box-shadow: 0 8px 25px rgba(138, 43, 226, 0.3);
       }
 
       .emotion-card .btn-explore:hover {
         transform: translateY(-3px);
-        box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
+        box-shadow: 0 15px 35px rgba(138, 43, 226, 0.4),
+          0 0 26px rgba(0, 207, 255, 0.24);
       }
 
       .emotion-modal {
@@ -193,7 +261,7 @@
 
       .emotion-modal-panel {
         width: min(1080px, 100%);
-        background: rgba(16, 22, 48, 0.96);
+        background: rgba(23, 23, 23, 0.96);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 28px;
         padding: 28px;
@@ -264,7 +332,7 @@
         position: absolute;
         inset: 0;
         pointer-events: none;
-        border: 2px solid rgba(99, 102, 241, 0.45);
+        border: 2px solid rgba(138, 43, 226, 0.45);
         border-radius: 20px;
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
       }
@@ -295,7 +363,7 @@
       }
 
       .status-chip i {
-        color: #7dd3fc;
+        color: var(--secondary);
       }
 
       .dominant-emotion {
@@ -347,7 +415,7 @@
         display: block;
         height: 100%;
         border-radius: inherit;
-        background: linear-gradient(90deg, #6366f1, #ec4899);
+        background: linear-gradient(90deg, var(--primary), var(--secondary));
       }
 
       .emotion-actions {
@@ -366,7 +434,7 @@
       }
 
       .emotion-action-btn.primary {
-        background: linear-gradient(135deg, #6366f1, #ec4899);
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
         color: white;
       }
 
@@ -383,7 +451,7 @@
         width: min(1120px, 100%);
         max-height: min(88vh, 920px);
         overflow: auto;
-        background: rgba(16, 22, 48, 0.96);
+        background: rgba(23, 23, 23, 0.96);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 28px;
         padding: 28px;
@@ -433,7 +501,7 @@
             rgba(255, 255, 255, 0.04),
             rgba(255, 255, 255, 0.01)
           ),
-          rgba(7, 11, 27, 0.72);
+          rgba(15, 15, 15, 0.72);
         border: 1px solid rgba(255, 255, 255, 0.06);
       }
 
@@ -536,6 +604,24 @@
         }
       }
 
+      @keyframes emotionAmbientShift {
+        0% {
+          transform: translate3d(-1.5%, 0, 0) scale(1);
+        }
+        100% {
+          transform: translate3d(2%, -2%, 0) scale(1.05);
+        }
+      }
+
+      @keyframes emotionAmbientSpin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
       @media (max-width: 768px) {
         .emotion-grid {
           grid-template-columns: 1fr;
@@ -562,7 +648,7 @@
       /* Recommendation Modal Styles */
       .recommendation-modal-panel {
         width: min(900px, 100%);
-        background: rgba(16, 22, 48, 0.96);
+        background: rgba(23, 23, 23, 0.96);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 28px;
         padding: 40px;
@@ -597,8 +683,8 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        background: rgba(99, 102, 241, 0.2);
-        border: 1px solid rgba(99, 102, 241, 0.3);
+        background: rgba(138, 43, 226, 0.2);
+        border: 1px solid rgba(138, 43, 226, 0.3);
         padding: 12px 20px;
         border-radius: 999px;
         color: rgba(255, 255, 255, 0.9);
@@ -665,14 +751,14 @@
       }
 
       .preference-chip:hover {
-        border-color: rgba(99, 102, 241, 0.5);
-        background: rgba(99, 102, 241, 0.1);
+        border-color: rgba(138, 43, 226, 0.5);
+        background: rgba(138, 43, 226, 0.1);
       }
 
       .preference-chip.selected {
-        background: linear-gradient(135deg, #6366f1, #ec4899);
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
         color: white;
-        border-color: rgba(99, 102, 241, 0.8);
+        border-color: rgba(138, 43, 226, 0.8);
       }
 
       .recommendation-actions {
@@ -694,14 +780,14 @@
       }
 
       .recommendation-btn.primary {
-        background: linear-gradient(135deg, #6366f1, #ec4899);
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
         color: white;
-        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        box-shadow: 0 8px 25px rgba(138, 43, 226, 0.3);
       }
 
       .recommendation-btn.primary:hover {
         transform: translateY(-3px);
-        box-shadow: 0 15px 35px rgba(99, 102, 241, 0.4);
+        box-shadow: 0 15px 35px rgba(138, 43, 226, 0.4);
       }
 
       .recommendation-btn.secondary {
@@ -730,7 +816,7 @@
 
       .progress-fill {
         height: 100%;
-        background: linear-gradient(90deg, #6366f1, #ec4899);
+        background: linear-gradient(90deg, var(--primary), var(--secondary));
         transition: width 0.3s ease;
       }
 

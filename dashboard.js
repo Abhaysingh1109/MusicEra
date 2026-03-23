@@ -98,6 +98,9 @@ const resultsCount = document.getElementById("resultsCount");
 const clearBtn = document.getElementById("clearSearch");
 const shuffleFeedBtn = document.getElementById("shuffleFeedBtn");
 const recommendationTitle = document.getElementById("recommendationTitle");
+const moodChip = document.getElementById("moodChip");
+const moodChipText = document.getElementById("moodChipText");
+const searchHero = document.querySelector(".search-hero");
 const genreChips = document.querySelectorAll(".genre-chip");
 const searchSuggestions = document.getElementById("searchSuggestions");
 const playlistItems = document.getElementById("playlistItems");
@@ -134,11 +137,139 @@ const VALID_MOODS = new Set([
   "neutral",
 ]);
 
+const MOOD_THEME_TOKENS = {
+  default: {
+    primary: "#8A2BE2",
+    secondary: "#00CFFF",
+    light: "#FFFFFF",
+    muted: "#CFCFFF",
+    glow: "rgba(138, 43, 226, 0.24)",
+    glowSecondary: "rgba(0, 207, 255, 0.18)",
+  },
+  happy: {
+    primary: "#00CFFF",
+    secondary: "#8A2BE2",
+    light: "#FFFFFF",
+    muted: "#D9FFFF",
+    glow: "rgba(0, 207, 255, 0.3)",
+    glowSecondary: "rgba(138, 43, 226, 0.14)",
+  },
+  sad: {
+    primary: "#6F3BFF",
+    secondary: "#3AA9FF",
+    light: "#F5F3FF",
+    muted: "#D8D2FF",
+    glow: "rgba(111, 59, 255, 0.28)",
+    glowSecondary: "rgba(58, 169, 255, 0.14)",
+  },
+  angry: {
+    primary: "#B026FF",
+    secondary: "#FF4FD8",
+    light: "#FFFFFF",
+    muted: "#F0CBFF",
+    glow: "rgba(176, 38, 255, 0.28)",
+    glowSecondary: "rgba(255, 79, 216, 0.16)",
+  },
+  fear: {
+    primary: "#7A2CFF",
+    secondary: "#00B5FF",
+    light: "#FFFFFF",
+    muted: "#DCCFFF",
+    glow: "rgba(122, 44, 255, 0.28)",
+    glowSecondary: "rgba(0, 181, 255, 0.15)",
+  },
+  disgust: {
+    primary: "#9A33FF",
+    secondary: "#23B7FF",
+    light: "#FFFFFF",
+    muted: "#E2D5FF",
+    glow: "rgba(154, 51, 255, 0.26)",
+    glowSecondary: "rgba(35, 183, 255, 0.15)",
+  },
+  surprise: {
+    primary: "#00CFFF",
+    secondary: "#A84CFF",
+    light: "#FFFFFF",
+    muted: "#D5F8FF",
+    glow: "rgba(0, 207, 255, 0.3)",
+    glowSecondary: "rgba(168, 76, 255, 0.18)",
+  },
+  neutral: {
+    primary: "#8A2BE2",
+    secondary: "#00CFFF",
+    light: "#FFFFFF",
+    muted: "#CFCFFF",
+    glow: "rgba(138, 43, 226, 0.24)",
+    glowSecondary: "rgba(0, 207, 255, 0.16)",
+  },
+};
+
+let activeMoodTheme = "";
+
 function normalizeValidMood(value) {
   const mood = String(value || "")
     .trim()
     .toLowerCase();
   return VALID_MOODS.has(mood) ? mood : "";
+}
+
+function formatMoodLabel(mood) {
+  const normalized = normalizeValidMood(mood);
+  if (!normalized) {
+    return "Neutral";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function pulseEmotionDetectionUI() {
+  [searchHero, recommendationTitle].forEach((element) => {
+    if (!element) {
+      return;
+    }
+
+    const className =
+      element === searchHero ? "emotion-detected-pulse" : "mood-detected";
+    element.classList.remove(className);
+    void element.offsetWidth;
+    element.classList.add(className);
+    setTimeout(() => element.classList.remove(className), 1200);
+  });
+}
+
+function applyMoodTheme(mood, shouldPulse = false) {
+  const normalized = normalizeValidMood(mood);
+  const moodKey = normalized || "default";
+  const theme = MOOD_THEME_TOKENS[moodKey] || MOOD_THEME_TOKENS.default;
+  const rootStyle = document.documentElement.style;
+
+  rootStyle.setProperty("--primary", theme.primary);
+  rootStyle.setProperty("--secondary", theme.secondary);
+  rootStyle.setProperty("--primary-light", theme.secondary);
+  rootStyle.setProperty("--light", theme.light);
+  rootStyle.setProperty("--muted", theme.muted);
+  rootStyle.setProperty("--mood-glow", theme.glow);
+  rootStyle.setProperty("--mood-glow-secondary", theme.glowSecondary);
+
+  if (document.body) {
+    document.body.setAttribute("data-mood", moodKey);
+  }
+
+  if (moodChip && moodChipText) {
+    if (normalized) {
+      moodChip.style.display = "inline-flex";
+      moodChipText.textContent = `Mood: ${formatMoodLabel(normalized)}`;
+    } else {
+      moodChip.style.display = "none";
+      moodChipText.textContent = "Mood: Neutral";
+    }
+  }
+
+  if (normalized && shouldPulse) {
+    pulseEmotionDetectionUI();
+  }
+
+  activeMoodTheme = normalized;
 }
 
 const LATEST_MOOD_SESSION_KEY = "latestDetectedMoodSnapshot";
@@ -191,6 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   currentUser = JSON.parse(userData);
+  applyMoodTheme("");
   playlistState = loadPlaylistFromStorage();
   renderPlaylist();
 
@@ -214,6 +346,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const mood = requestedMood;
     forcedMood = mood;
     activeMoodFromHistory = forcedMood;
+    applyMoodTheme(mood, true);
     const searchQuery = buildMoodSearchQuery(
       mood,
       selectedErasStr,
@@ -229,6 +362,7 @@ document.addEventListener("DOMContentLoaded", () => {
     sessionStorage.removeItem("selectedEras");
     sessionStorage.removeItem("selectedLanguages");
   } else {
+    applyMoodTheme("");
     // Load default feed
     loadInitialFeed();
   }
@@ -288,6 +422,7 @@ function updateHeaderWithMood(profile, isSearchMode) {
   if (forcedMood) {
     const moodText = forcedMood.charAt(0).toUpperCase() + forcedMood.slice(1);
     activeMoodFromHistory = forcedMood;
+    applyMoodTheme(forcedMood, activeMoodTheme !== forcedMood);
     if (isSearchMode) {
       setRecommendationHeader(
         `${userName}, your mood is ${moodText} - showing matching songs`,
@@ -300,6 +435,7 @@ function updateHeaderWithMood(profile, isSearchMode) {
 
   if (!profile?.dominantMood) {
     activeMoodFromHistory = "";
+    applyMoodTheme("");
     if (isSearchMode) {
       setRecommendationHeader(`${userName}, searching songs for your vibe`);
       return;
@@ -311,6 +447,7 @@ function updateHeaderWithMood(profile, isSearchMode) {
   const normalizedProfileMood = normalizeValidMood(profile.dominantMood);
   if (!normalizedProfileMood) {
     activeMoodFromHistory = "";
+    applyMoodTheme("");
     if (isSearchMode) {
       setRecommendationHeader(`${userName}, searching songs for your vibe`);
       return;
@@ -320,6 +457,10 @@ function updateHeaderWithMood(profile, isSearchMode) {
   }
 
   activeMoodFromHistory = normalizedProfileMood;
+  applyMoodTheme(
+    normalizedProfileMood,
+    activeMoodTheme !== normalizedProfileMood,
+  );
   const moodText =
     normalizedProfileMood.charAt(0).toUpperCase() +
     normalizedProfileMood.slice(1);
@@ -1566,6 +1707,9 @@ function createMusicCardMarkup(video) {
                 <img src="${safeThumbnail}" alt="${safeTitle}" loading="lazy">
                 <div class="play-overlay">
                 <i class="fas fa-play"></i> <!-- MP3 DISABLED -->
+                <div class="visualizer-bars" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
                 </div>
                 <div class="mini-player" style="display: none;">
                     <button class="mini-play-btn"><i class="fas fa-pause"></i></button>
