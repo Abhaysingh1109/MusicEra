@@ -78,7 +78,8 @@
     )[0] || "";
 
   const resolvedBase =
-    preferredBase || (isLocalHost ? "http://localhost:3001" : "");
+    preferredBase ||
+    (isLocalHost ? "http://localhost:3001" : window.location.origin);
 
   if (resolvedBase) {
     window.MUSICERA_API_BASE = resolvedBase;
