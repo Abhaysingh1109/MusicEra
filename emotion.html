@@ -166,7 +166,12 @@
         left: 0;
         right: 0;
         height: 4px;
-        background: linear-gradient(90deg, var(--primary), var(--secondary), var(--primary));
+        background: linear-gradient(
+          90deg,
+          var(--primary),
+          var(--secondary),
+          var(--primary)
+        );
         background-size: 200% 100%;
         animation: shimmer 3s infinite;
       }
@@ -183,14 +188,17 @@
         );
         opacity: 0;
         transform: translateX(-120%);
-        transition: transform 0.55s ease, opacity 0.35s ease;
+        transition:
+          transform 0.55s ease,
+          opacity 0.35s ease;
         pointer-events: none;
       }
 
       .emotion-card:hover {
         transform: perspective(1100px) rotateX(6deg) rotateY(-6deg)
           translateY(-12px) scale(1.01);
-        box-shadow: 0 30px 60px rgba(138, 43, 226, 0.32),
+        box-shadow:
+          0 30px 60px rgba(138, 43, 226, 0.32),
           0 0 28px rgba(0, 207, 255, 0.18);
         border-color: rgba(138, 43, 226, 0.52);
       }
@@ -239,7 +247,8 @@
 
       .emotion-card .btn-explore:hover {
         transform: translateY(-3px);
-        box-shadow: 0 15px 35px rgba(138, 43, 226, 0.4),
+        box-shadow:
+          0 15px 35px rgba(138, 43, 226, 0.4),
           0 0 26px rgba(0, 207, 255, 0.24);
       }
 
@@ -845,6 +854,12 @@
         border-color: rgba(255, 255, 255, 0.3);
       }
 
+      .preference-hint {
+        margin-top: 12px;
+        color: rgba(255, 255, 255, 0.62);
+        font-size: 0.9rem;
+      }
+
       .scan-progress {
         margin-bottom: 20px;
       }
@@ -992,8 +1007,8 @@
               <div class="camera-overlay"></div>
             </div>
             <p class="camera-guidance" id="cameraGuidance">
-              The detector checks your face every 2 seconds and updates the
-              emotion lines automatically.
+              The detector checks your face quickly (about 2-3 frames) and
+              updates the emotion lines automatically.
             </p>
           </section>
 
@@ -1115,7 +1130,7 @@
               class="preference-chip"
               onclick="togglePreference(this, 'language')"
             >
-              Punjabi
+              Bhojpuri
             </div>
             <div
               class="preference-chip"
@@ -1133,9 +1148,19 @@
               class="preference-chip"
               onclick="togglePreference(this, 'language')"
             >
+              Punjabi
+            </div>
+            <div
+              class="preference-chip"
+              onclick="togglePreference(this, 'language')"
+            >
               Any
             </div>
           </div>
+          <p class="preference-hint">
+            Select one or more languages. If you choose "Any", specific language
+            filters will be ignored.
+          </p>
         </div>
 
         <div class="recommendation-actions">
@@ -1145,6 +1170,13 @@
             onclick="closePreferencesModal()"
           >
             <i class="fas fa-arrow-left"></i> Back
+          </button>
+          <button
+            class="recommendation-btn secondary"
+            type="button"
+            onclick="goToMusicRecommendation()"
+          >
+            <i class="fas fa-forward"></i> Continue Without Preferences
           </button>
           <button
             class="recommendation-btn primary"
@@ -1212,12 +1244,27 @@
           preferences! 🎵
         </p>
 
+        <div class="recommendation-actions">
           <button
-            class="recommendation-btn primary"
+            class="recommendation-btn secondary"
+            type="button"
+            onclick="closeRecommendation()"
+          >
+            <i class="fas fa-clock-rotate-left"></i> Detect Again
+          </button>
+          <button
+            class="recommendation-btn secondary"
             type="button"
             onclick="goToMusicRecommendation()"
           >
-            <i class="fas fa-music"></i> Find Music
+            <i class="fas fa-arrow-right"></i> Skip Preferences
+          </button>
+          <button
+            class="recommendation-btn primary"
+            type="button"
+            onclick="setupPreferences()"
+          >
+            <i class="fas fa-sliders"></i> Choose Era & Language
           </button>
         </div>
       </div>
@@ -1365,8 +1412,10 @@
       let latestDetectedMood = "";
       let selectedEras = [];
       let selectedLanguages = [];
-      const MAX_SCANS_FOR_RECOMMENDATION = 5;
-      const MIN_SCANS_FOR_RECOMMENDATION = 4;
+      const MAX_SCANS_FOR_RECOMMENDATION = 3;
+      const MIN_SCANS_FOR_RECOMMENDATION = 2;
+      const LIVE_DETECTION_INTERVAL_MS = 800;
+      const SMOOTHING_FRAME_WINDOW = 3;
 
       // Mood emoji mapping
       const moodEmojiMap = {
@@ -1670,7 +1719,7 @@
         return result;
       }
 
-      function scheduleNextDetection(delay = 2000) {
+      function scheduleNextDetection(delay = LIVE_DETECTION_INTERVAL_MS) {
         if (!emotionStream) {
           return;
         }
@@ -1822,18 +1871,19 @@
 
       function smoothEmotionResult(emotions) {
         emotionHistory.push(emotions);
-        if (emotionHistory.length > 2) {
+        if (emotionHistory.length > SMOOTHING_FRAME_WINDOW) {
           emotionHistory.shift();
         }
 
         const scoreMap = new Map();
-        emotionHistory.forEach((frameEmotions, index) => {
-          const weight = index === emotionHistory.length - 1 ? 0.65 : 0.35;
+        const baseWeight = 1 / emotionHistory.length;
+        emotionHistory.forEach((frameEmotions) => {
           frameEmotions.forEach((emotion) => {
             const label = String(emotion.label || "");
             scoreMap.set(
               label,
-              (scoreMap.get(label) || 0) + Number(emotion.score || 0) * weight,
+              (scoreMap.get(label) || 0) +
+                Number(emotion.score || 0) * baseWeight,
             );
           });
         });
@@ -1926,7 +1976,7 @@
           scanCount >= MIN_SCANS_FOR_RECOMMENDATION &&
           scanCount <= MAX_SCANS_FOR_RECOMMENDATION
         ) {
-          // Automatically show recommendation after 4 scans
+          // Automatically show recommendation after minimum scans.
           if (scanCount === MIN_SCANS_FOR_RECOMMENDATION) {
             setTimeout(() => {
               closeEmotionDetection();
@@ -1962,7 +2012,9 @@
             body: JSON.stringify({
               userId: userData.id,
               email: userData.email,
-              recentScans: emotionScansList.slice(-5),
+              recentScans: emotionScansList.slice(
+                -MAX_SCANS_FOR_RECOMMENDATION,
+              ),
             }),
           });
 
@@ -2003,11 +2055,15 @@
       }
 
       function setupPreferences() {
+        recommendationModal.classList.remove("active");
         preferencesModal.classList.add("active");
       }
 
       function closePreferencesModal() {
         preferencesModal.classList.remove("active");
+        if (averageEmotion) {
+          recommendationModal.classList.add("active");
+        }
       }
 
       function togglePreference(element, type) {
@@ -2016,13 +2072,45 @@
         const text = element.textContent.trim();
         if (type === "era") {
           if (element.classList.contains("selected")) {
-            selectedEras.push(text);
+            if (!selectedEras.includes(text)) {
+              selectedEras.push(text);
+            }
           } else {
             selectedEras = selectedEras.filter((e) => e !== text);
           }
         } else if (type === "language") {
+          if (text.toLowerCase() === "any") {
+            if (element.classList.contains("selected")) {
+              selectedLanguages = ["Any"];
+              document
+                .querySelectorAll("#languageOptions .preference-chip")
+                .forEach((chip) => {
+                  if (chip !== element) {
+                    chip.classList.remove("selected");
+                  }
+                });
+            } else {
+              selectedLanguages = selectedLanguages.filter(
+                (l) => l.toLowerCase() !== "any",
+              );
+            }
+            return;
+          }
+
           if (element.classList.contains("selected")) {
-            selectedLanguages.push(text);
+            selectedLanguages = selectedLanguages.filter(
+              (l) => l.toLowerCase() !== "any",
+            );
+            const anyChip = Array.from(
+              document.querySelectorAll("#languageOptions .preference-chip"),
+            ).find((chip) => chip.textContent.trim().toLowerCase() === "any");
+            if (anyChip) {
+              anyChip.classList.remove("selected");
+            }
+
+            if (!selectedLanguages.includes(text)) {
+              selectedLanguages.push(text);
+            }
           } else {
             selectedLanguages = selectedLanguages.filter((l) => l !== text);
           }
@@ -2051,36 +2139,39 @@
       }
 
       async function savePreferencesAndRecommend() {
-        if (selectedEras.length === 0 && selectedLanguages.length === 0) {
-          triggerInvalidPreferenceFeedback();
-          alert("Please choose at least one era or language preference.");
-          return;
-        }
-
         try {
-          // Save user preferences
-          const prefResponse = await fetch(`${API_URL}/user-preferences`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userId: userData.id,
-              email: userData.email,
-              eras: selectedEras,
-              languages: selectedLanguages,
-            }),
-          });
+          const hasSelectedPreferences =
+            selectedEras.length > 0 || selectedLanguages.length > 0;
 
-          if (!prefResponse.ok) {
-            console.error("Failed to save preferences");
-            return;
+          if (hasSelectedPreferences) {
+            const prefResponse = await fetch(`${API_URL}/user-preferences`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                userId: userData.id,
+                email: userData.email,
+                eras: selectedEras,
+                languages: selectedLanguages,
+              }),
+            });
+
+            if (!prefResponse.ok) {
+              const payload = await prefResponse.json().catch(() => ({}));
+              console.error(
+                "Failed to save preferences:",
+                payload.message || "Unknown error",
+              );
+            }
           }
 
           closePreferencesModal();
           goToMusicRecommendation();
         } catch (error) {
           console.error("Error saving preferences:", error);
+          closePreferencesModal();
+          goToMusicRecommendation();
         }
       }
 

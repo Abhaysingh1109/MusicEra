@@ -382,17 +382,27 @@ function buildMoodSearchQuery(mood, erasStr, languagesStr) {
 
   let query = moodSeedQuery[normalizedMood] || "top hits";
 
+  const normalizePreferenceList = (value) => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.map((item) => String(item || "").trim()).filter(Boolean);
+  };
+
   try {
     if (erasStr) {
-      const eras = JSON.parse(erasStr);
+      const eras = normalizePreferenceList(JSON.parse(erasStr));
       if (eras.length > 0) {
-        query += " " + eras[0];
+        query += " " + eras.slice(0, 3).join(" ");
       }
     }
     if (languagesStr) {
-      const languages = JSON.parse(languagesStr);
-      if (languages.length > 0) {
-        query += " " + languages[0];
+      const languages = normalizePreferenceList(JSON.parse(languagesStr));
+      const hasAnyLanguage = languages.some(
+        (language) => language.toLowerCase() === "any",
+      );
+      if (languages.length > 0 && !hasAnyLanguage) {
+        query += " " + languages.slice(0, 3).join(" ");
       }
     }
   } catch (e) {

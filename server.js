@@ -2475,10 +2475,16 @@ app.post("/api/user-preferences", async (req, res) => {
       });
     }
 
-    // Validate and sanitize inputs
-    const validEras = Array.isArray(eras) ? eras.filter((e) => e) : [];
+    // Validate and sanitize inputs for text[] columns.
+    const validEras = Array.isArray(eras)
+      ? eras
+          .map((era) => String(era || "").trim())
+          .filter((era) => era.length > 0)
+      : [];
     const validLanguages = Array.isArray(languages)
-      ? languages.filter((l) => l)
+      ? languages
+          .map((language) => String(language || "").trim())
+          .filter((language) => language.length > 0)
       : [];
 
     // Upsert user preferences
@@ -2491,11 +2497,7 @@ app.post("/api/user-preferences", async (req, res) => {
          preferred_languages = $3::text[],
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
-      [
-        identity.userId,
-        JSON.stringify(validEras),
-        JSON.stringify(validLanguages),
-      ],
+      [identity.userId, validEras, validLanguages],
     );
 
     res.json({
