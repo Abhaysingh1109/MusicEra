@@ -46,6 +46,17 @@ const MAIL_FROM =
 const OTP_DEV_FALLBACK_ENABLED =
   String(process.env.OTP_DEV_FALLBACK_ENABLED || "true").toLowerCase() ===
   "true";
+const DATABASE_URL = String(process.env.DATABASE_URL || "").trim();
+const PG_SSL_MODE = String(
+  process.env.PGSSL || process.env.PGSSLMODE || "",
+).toLowerCase();
+const PG_SSL_ENABLED =
+  PG_SSL_MODE === "true" ||
+  PG_SSL_MODE === "require" ||
+  DATABASE_URL.includes("sslmode=require");
+const PG_SSL_REJECT_UNAUTHORIZED =
+  String(process.env.PGSSL_REJECT_UNAUTHORIZED || "false").toLowerCase() ===
+  "true";
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
@@ -76,13 +87,25 @@ function getPythonSpawnEnv() {
   };
 }
 
-const pool = new Pool({
-  host: process.env.PGHOST || "localhost",
-  port: parseInt(process.env.PGPORT || "5432"),
-  database: process.env.PGDATABASE || "musicera",
-  user: process.env.PGUSER || "postgres",
-  password: process.env.PGPASSWORD || "",
-});
+const poolConfig = DATABASE_URL
+  ? {
+      connectionString: DATABASE_URL,
+    }
+  : {
+      host: process.env.PGHOST || "localhost",
+      port: parseInt(process.env.PGPORT || "5432", 10),
+      database: process.env.PGDATABASE || "musicera",
+      user: process.env.PGUSER || "postgres",
+      password: process.env.PGPASSWORD || "",
+    };
+
+if (PG_SSL_ENABLED) {
+  poolConfig.ssl = {
+    rejectUnauthorized: PG_SSL_REJECT_UNAUTHORIZED,
+  };
+}
+
+const pool = new Pool(poolConfig);
 
 let dbReady = false;
 let emotionWorkerProcess = null;
@@ -834,6 +857,19 @@ async function initializeDatabase() {
     console.log("🎉 DB ready - full mode");
   } catch (error) {
     console.error("❌ DB error:", error.message);
+    if (error?.code) {
+      console.error("❌ DB error code:", error.code);
+    }
+    if (!DATABASE_URL && !process.env.PGHOST) {
+      console.error(
+        "⚠️ Missing database configuration. Set DATABASE_URL or PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD.",
+      );
+    }
+    if (!DATABASE_URL && process.env.PGHOST === "localhost") {
+      console.error(
+        "⚠️ PGHOST is localhost in production. On Render, use your managed DB host or set DATABASE_URL.",
+      );
+    }
     console.log(
       "⚠️  Starting in lite mode (frontend + search OK, auth disabled)",
     );
