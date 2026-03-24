@@ -270,6 +270,8 @@ let detectionIntervalId = null;
 let scanToken = 0;
 let stableDetectionCount = 0;
 let captureInProgress = false;
+let serverFaceLoginEnabled = true;
+let serverFaceLoginReason = "";
 const FACE_LOGIN_SAMPLE_COUNT = 1;
 const FACE_ENROLL_SAMPLE_COUNT = 3;
 const FACE_LOGIN_STABLE_PASSES = 1;
@@ -302,8 +304,12 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initApp() {
-  // Load Face API models
-  await loadFaceAPI();
+  await syncServerCapabilities();
+
+  // Load Face API models only when face login is available.
+  if (serverFaceLoginEnabled) {
+    await loadFaceAPI();
+  }
 
   // Hide loading overlay
   setTimeout(() => {
@@ -317,8 +323,70 @@ async function initApp() {
   // Ensure manual login is hidden by default
   const manualFields = document.getElementById("manualLoginFields");
   const submitBtn = document.getElementById("loginSubmitBtn");
-  if (manualFields) manualFields.style.display = "none";
-  if (submitBtn) submitBtn.style.display = "none";
+  if (serverFaceLoginEnabled) {
+    if (manualFields) manualFields.style.display = "none";
+    if (submitBtn) submitBtn.style.display = "none";
+  }
+}
+
+async function syncServerCapabilities() {
+  if (!canUseApi()) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/capabilities`);
+    const data = await response.json();
+    const capabilities = data?.capabilities || {};
+
+    if (typeof capabilities.faceLoginEnabled === "boolean") {
+      serverFaceLoginEnabled = capabilities.faceLoginEnabled;
+    }
+
+    serverFaceLoginReason = String(capabilities.faceLoginReason || "");
+  } catch (error) {
+    console.warn("Unable to fetch server capabilities:", error);
+  }
+
+  if (!serverFaceLoginEnabled) {
+    disableFaceLoginUi(
+      serverFaceLoginReason ||
+        "Face login is currently unavailable on this deployment.",
+    );
+  }
+}
+
+function disableFaceLoginUi(reason) {
+  const faceLoginMainEl = document.getElementById("faceLoginMain");
+  const dividerEl = document.querySelector(".divider");
+  const manualToggleEl = document.querySelector(".manual-login-toggle");
+  const manualFieldsEl = document.getElementById("manualLoginFields");
+  const submitBtnEl = document.getElementById("loginSubmitBtn");
+
+  if (faceLoginMainEl) {
+    faceLoginMainEl.style.display = "none";
+  }
+
+  if (dividerEl) {
+    dividerEl.style.display = "none";
+  }
+
+  if (manualToggleEl) {
+    manualToggleEl.style.display = "none";
+  }
+
+  if (manualFieldsEl) {
+    manualFieldsEl.style.display = "block";
+  }
+
+  if (submitBtnEl) {
+    submitBtnEl.style.display = "block";
+  }
+
+  const faceLoginHintEl = document.getElementById("faceLoginStatus");
+  if (faceLoginHintEl) {
+    faceLoginHintEl.textContent = reason;
+  }
 }
 
 function normalizeEmailForValidation(value) {
@@ -783,6 +851,16 @@ function toggleFaceLogin() {
 
 // Start Face Login
 async function startFaceLogin() {
+  if (!serverFaceLoginEnabled) {
+    await showAppPopup(
+      "Face Login Unavailable",
+      serverFaceLoginReason ||
+        "Face login is disabled on this deployment. Use email and password login.",
+      { tone: "warning" },
+    );
+    return;
+  }
+
   currentMode = "login";
   document.getElementById("faceModalTitle").textContent = "Face Login";
   document.getElementById("faceModalDesc").textContent =
