@@ -244,6 +244,7 @@ def run_once():
 
 def run_worker():
     warm_face_model()
+    print(json.dumps({"type": "ready"}), flush=True)
 
     for raw_line in sys.stdin:
         line = raw_line.strip()
