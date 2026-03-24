@@ -4,8 +4,8 @@
     window.location.hostname === "127.0.0.1";
   const isGithubPages = window.location.hostname.includes("github.io");
 
-  // Set this once for production deployment, e.g. "https://musicera-api.onrender.com"
-  const DEFAULT_DEPLOYED_API_BASE = "";
+  // Production backend URL (Render).
+  const DEFAULT_DEPLOYED_API_BASE = "https://musicera.onrender.com";
 
   const searchParams = new URLSearchParams(window.location.search);
   const queryApiBase =
@@ -20,6 +20,22 @@
 
     if (/\/api$/i.test(normalized)) {
       normalized = normalized.replace(/\/api$/i, "");
+    }
+
+    // Handle common production typos so clients still connect.
+    try {
+      const url = new URL(normalized);
+      const hostAliases = {
+        "musciaera.onrender.com": "musicera.onrender.com",
+        "musicaera.onrender.com": "musicera.onrender.com",
+      };
+      const correctedHost = hostAliases[url.hostname.toLowerCase()];
+      if (correctedHost) {
+        url.hostname = correctedHost;
+        normalized = url.toString().replace(/\/+$/, "");
+      }
+    } catch (_error) {
+      // Keep original value; validation is handled separately.
     }
 
     return normalized;
@@ -83,6 +99,7 @@
 
   if (resolvedBase) {
     window.MUSICERA_API_BASE = resolvedBase;
+    localStorage.setItem("MUSICERA_API_BASE", resolvedBase);
     window.MUSICERA_API_DEBUG = {
       base: resolvedBase,
       source: preferredBase ? "configured" : "localhost-fallback",
