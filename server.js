@@ -491,6 +491,7 @@ async function getMailTransporter() {
       hasService
         ? {
             service: process.env.SMTP_SERVICE,
+            family: 4,
             connectionTimeout: SMTP_CONNECT_TIMEOUT_MS,
             greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
             socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
@@ -503,6 +504,7 @@ async function getMailTransporter() {
             host: process.env.SMTP_HOST,
             port: SMTP_PORT,
             secure: SMTP_SECURE,
+            family: 4,
             connectionTimeout: SMTP_CONNECT_TIMEOUT_MS,
             greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
             socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
