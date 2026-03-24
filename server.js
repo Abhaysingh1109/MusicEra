@@ -19,7 +19,21 @@ dotenv.config();
 const app = express();
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const HOST = process.env.HOST || "0.0.0.0";
-const IS_RENDER = Boolean(process.env.RENDER);
+function isTruthyEnv(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+}
+
+const IS_RENDER =
+  isTruthyEnv(process.env.RENDER) ||
+  [
+    "RENDER_SERVICE_ID",
+    "RENDER_INSTANCE_ID",
+    "RENDER_EXTERNAL_URL",
+    "RENDER_EXTERNAL_HOSTNAME",
+  ].some((key) => Boolean(process.env[key]));
 const LOCAL_VENV_PYTHON = path.join(__dirname, ".venv", "bin", "python3");
 
 function pythonHasDeepFace(pythonBin) {

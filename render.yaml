@@ -46,3 +46,7 @@ services:
         value: "10"
       - key: OTP_MAX_ATTEMPTS
         value: "5"
+      - key: FACE_AUTH_REQUEST_TIMEOUT_MS
+        value: "45000"
+      - key: FACE_AUTH_WORKER_STARTUP_TIMEOUT_MS
+        value: "90000"
