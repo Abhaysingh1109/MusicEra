@@ -1,6 +1,11 @@
+const path = require("path");
+const dotenv = require("dotenv");
 const nodemailer = require("nodemailer");
 const { Pool } = require("pg");
 const axios = require("axios");
+
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
+dotenv.config({ path: path.join(__dirname, ".env"), override: true });
 
 async function testAll() {
   console.log("\n🧪 Testing all connections...\n");
@@ -8,11 +13,12 @@ async function testAll() {
   // Test Database
   console.log("1️⃣ Testing PostgreSQL...");
   const pool = new Pool({
-    host: "localhost",
-    port: 5432,
-    database: "musicera",
-    user: "postgres",
-    password: "11092002",
+    connectionString: process.env.DATABASE_URL || undefined,
+    host: process.env.PGHOST || "localhost",
+    port: parseInt(process.env.PGPORT || "5432", 10),
+    database: process.env.PGDATABASE || "musicera",
+    user: process.env.PGUSER || "postgres",
+    password: String(process.env.PGPASSWORD || ""),
   });
 
   try {
@@ -28,12 +34,12 @@ async function testAll() {
   // Test SMTP
   console.log("\n2️⃣ Testing Gmail SMTP...");
   const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.SMTP_PORT || "587", 10),
+    secure: String(process.env.SMTP_SECURE || "false").toLowerCase() === "true",
     auth: {
-      user: "abhaysingh11091999@gmail.com",
-      pass: "qmxl dctn bqml ckdg",
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
     },
   });
 
@@ -53,7 +59,7 @@ async function testAll() {
         params: {
           part: "snippet",
           q: "test",
-          key: "AIzaSyB3m-ZzyvNyIfLYsuyXVNTfD3gP8qk4VhI",
+          key: process.env.YOUTUBE_API_KEY,
           maxResults: 1,
         },
         timeout: 5000,
