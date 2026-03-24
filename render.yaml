@@ -4,7 +4,7 @@ services:
     env: node
     plan: free
     autoDeploy: true
-    buildCommand: npm install && python3 -m pip install --upgrade pip && python3 -m pip install -r requirements.txt
+    buildCommand: npm install && python3 -m pip install --upgrade pip && if [ "$ML_FEATURES_ENABLED" = "true" ]; then python3 -m pip install -r requirements-ml.txt; else echo "Skipping optional ML Python dependencies"; fi
     startCommand: node server.js
     healthCheckPath: /health
     envVars:
@@ -12,6 +12,8 @@ services:
         value: production
       - key: PYTHON_BIN
         value: python3
+      - key: ML_FEATURES_ENABLED
+        value: "false"
       - key: DATABASE_URL
         sync: false
       - key: PGHOST

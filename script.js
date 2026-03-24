@@ -1110,6 +1110,11 @@ async function submitFaceFrames(frames) {
     }
 
     if (!response.ok || !data.success) {
+      console.error("Face endpoint failed", {
+        endpoint: requestUrl,
+        status: response.status,
+        response: data,
+      });
       updateFaceStatus(
         "error",
         data.message || `Face verification failed at ${requestUrl}.`,
