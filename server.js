@@ -35,17 +35,27 @@ const IS_RENDER =
     "RENDER_EXTERNAL_HOSTNAME",
   ].some((key) => Boolean(process.env[key]));
 const LOCAL_VENV_PYTHON = path.join(__dirname, ".venv", "bin", "python3");
+const ML_FEATURES_ENABLED = isTruthyEnv(
+  process.env.ML_FEATURES_ENABLED || (IS_RENDER ? "false" : "true"),
+);
+const PYTHON_ISOLATED_ENV = isTruthyEnv(
+  process.env.PYTHON_ISOLATED_ENV || (IS_RENDER ? "true" : "false"),
+);
 
 function pythonHasDeepFace(pythonBin) {
+  if (!ML_FEATURES_ENABLED) {
+    return false;
+  }
+
   try {
-    const probe = spawnSync(
-      pythonBin,
-      ["-c", "import numpy, cv2, deepface; print('ok')"],
-      {
-        timeout: 12000,
-        stdio: ["ignore", "ignore", "ignore"],
-      },
-    );
+    const probeCode = IS_RENDER
+      ? "import importlib.util as u; mods=('numpy','cv2','deepface'); raise SystemExit(0 if all(u.find_spec(m) is not None for m in mods) else 1)"
+      : "import numpy, cv2, deepface, tensorflow; print('ok')";
+    const probe = spawnSync(pythonBin, ["-c", probeCode], {
+      timeout: 12000,
+      env: getPythonSpawnEnv(),
+      stdio: ["ignore", "ignore", "ignore"],
+    });
     return probe.status === 0;
   } catch (error) {
     return false;
@@ -53,6 +63,10 @@ function pythonHasDeepFace(pythonBin) {
 }
 
 function resolvePythonBin() {
+  if (!ML_FEATURES_ENABLED) {
+    return process.env.PYTHON_BIN || "python3";
+  }
+
   if (process.env.PYTHON_BIN) {
     return process.env.PYTHON_BIN;
   }
@@ -151,12 +165,21 @@ app.get("/health", (_req, res) => {
 });
 
 function getPythonSpawnEnv() {
-  return {
+  const env = {
     ...process.env,
-    PYTHONNOUSERSITE: "1",
-    PYTHONPATH: "",
-    PYTHONHOME: "",
   };
+
+  if (PYTHON_ISOLATED_ENV) {
+    env.PYTHONNOUSERSITE = "1";
+    env.PYTHONPATH = "";
+    env.PYTHONHOME = "";
+    return env;
+  }
+
+  delete env.PYTHONNOUSERSITE;
+  delete env.PYTHONPATH;
+  delete env.PYTHONHOME;
+  return env;
 }
 
 const poolConfig = DATABASE_URL
@@ -1351,6 +1374,24 @@ function isFaceValidationError(message) {
   ].some((token) => text.includes(token));
 }
 
+function isFaceDependencyError(message) {
+  const text = String(message || "").toLowerCase();
+  return [
+    "face_auth_not_configured",
+    "no module named",
+    "modulenotfounderror",
+    "cannot import name",
+    "importerror",
+    "deepface",
+    "tensorflow",
+    "tf_keras",
+    "keras",
+    "opencv",
+    "cv2",
+    "numpy",
+  ].some((token) => text.includes(token));
+}
+
 function ensureFaceAuthWorker() {
   if (faceAuthWorkerReady) {
     return faceAuthWorkerReady;
@@ -1969,9 +2010,7 @@ app.post("/api/face-login", async (req, res) => {
     console.error("Face login error:", error);
     const message = String(error?.message || "");
     const timedOut = /timed out/i.test(message);
-    const missingDeepFace =
-      /no module named ['\"]?deepface['\"]?/i.test(message) ||
-      /FACE_AUTH_NOT_CONFIGURED/i.test(message);
+    const missingDeepFace = isFaceDependencyError(message);
     const validationError = isFaceValidationError(message);
     const statusCode = missingDeepFace
       ? 503
@@ -2065,9 +2104,7 @@ app.post("/api/save-face", async (req, res) => {
     console.error("Save face error:", error);
     const message = String(error?.message || "");
     const timedOut = /timed out/i.test(message);
-    const missingDeepFace =
-      /no module named ['\"]?deepface['\"]?/i.test(message) ||
-      /FACE_AUTH_NOT_CONFIGURED/i.test(message);
+    const missingDeepFace = isFaceDependencyError(message);
     const validationError = isFaceValidationError(message);
     const statusCode = missingDeepFace
       ? 503
@@ -2190,6 +2227,12 @@ function ensureEmotionWorker() {
 }
 
 async function runPythonEmotionDetection(imagePath) {
+  if (!ML_FEATURES_ENABLED) {
+    throw new Error(
+      "EMOTION_DETECTION_DISABLED: Set ML_FEATURES_ENABLED=true and install Python ML dependencies.",
+    );
+  }
+
   await ensureEmotionWorker();
 
   return new Promise((resolve, reject) => {
@@ -2237,11 +2280,14 @@ app.post("/api/emotion-detect", async (req, res) => {
       ...result,
     });
   } catch (error) {
+    const disabled = /EMOTION_DETECTION_DISABLED/i.test(error.message || "");
     const statusCode =
       error.message === "A base64 encoded image is required" ||
       error.message === "Invalid image payload"
         ? 400
-        : 500;
+        : disabled
+          ? 503
+          : 500;
 
     console.error("Emotion detection error:", error.message);
     res.status(statusCode).json({
@@ -2249,7 +2295,9 @@ app.post("/api/emotion-detect", async (req, res) => {
       message:
         statusCode === 400
           ? error.message
-          : "Emotion detection failed. Install Python dependencies from requirements.txt and try again.",
+          : statusCode === 503
+            ? "Emotion detection is disabled on this deployment. Set ML_FEATURES_ENABLED=true and install ML Python dependencies."
+            : "Emotion detection failed. Install Python dependencies from requirements.txt and try again.",
       error: statusCode === 400 ? undefined : error.message,
     });
   } finally {
@@ -3049,24 +3097,30 @@ app.post("/api/recommendations", async (req, res) => {
 async function startServer() {
   console.log("🚀 Starting MusicEra server...");
   console.log(`🐍 Python binary: ${PYTHON_BIN}`);
+  console.log(`🧠 ML features enabled: ${ML_FEATURES_ENABLED ? "yes" : "no"}`);
+  console.log(`🧪 Python isolated env: ${PYTHON_ISOLATED_ENV ? "yes" : "no"}`);
   console.log(`🧪 DeepFace available: ${FACE_AUTH_AVAILABLE ? "yes" : "no"}`);
-  if (!FACE_AUTH_AVAILABLE) {
+  if (ML_FEATURES_ENABLED && !FACE_AUTH_AVAILABLE) {
     console.warn(
       "⚠️ Face authentication is disabled: missing Python dependency 'deepface'.",
     );
   }
   await initializeDatabase();
-  try {
-    console.log("🧠 Warming emotion detection worker...");
-    await ensureEmotionWorker();
-  } catch (error) {
-    console.error("⚠️ Emotion worker warmup failed:", error.message);
-  }
-  try {
-    console.log("🛡️ Warming face auth worker...");
-    await ensureFaceAuthWorker();
-  } catch (error) {
-    console.error("⚠️ Face auth worker warmup failed:", error.message);
+  if (ML_FEATURES_ENABLED) {
+    try {
+      console.log("🧠 Warming emotion detection worker...");
+      await ensureEmotionWorker();
+    } catch (error) {
+      console.error("⚠️ Emotion worker warmup failed:", error.message);
+    }
+    try {
+      console.log("🛡️ Warming face auth worker...");
+      await ensureFaceAuthWorker();
+    } catch (error) {
+      console.error("⚠️ Face auth worker warmup failed:", error.message);
+    }
+  } else {
+    console.log("🧩 ML workers skipped (ML_FEATURES_ENABLED=false)");
   }
   console.log("🌐 Starting HTTP server...");
   app.listen(PORT, HOST, () => {
