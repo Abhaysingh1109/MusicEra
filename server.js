@@ -106,6 +106,30 @@ const MAIL_FROM =
 const OTP_DEV_FALLBACK_ENABLED =
   String(process.env.OTP_DEV_FALLBACK_ENABLED || "true").toLowerCase() ===
   "true";
+const OTP_ALLOW_PRODUCTION_DEV_FALLBACK =
+  String(
+    process.env.OTP_ALLOW_PRODUCTION_DEV_FALLBACK || "false",
+  ).toLowerCase() === "true";
+const SMTP_CONNECT_TIMEOUT_MS = Math.max(
+  3000,
+  parseInt(process.env.SMTP_CONNECT_TIMEOUT_MS || "10000", 10),
+);
+const SMTP_GREETING_TIMEOUT_MS = Math.max(
+  3000,
+  parseInt(process.env.SMTP_GREETING_TIMEOUT_MS || "10000", 10),
+);
+const SMTP_SOCKET_TIMEOUT_MS = Math.max(
+  5000,
+  parseInt(process.env.SMTP_SOCKET_TIMEOUT_MS || "15000", 10),
+);
+const SMTP_VERIFY_TIMEOUT_MS = Math.max(
+  3000,
+  parseInt(process.env.SMTP_VERIFY_TIMEOUT_MS || "8000", 10),
+);
+const OTP_MAIL_TIMEOUT_MS = Math.max(
+  3000,
+  parseInt(process.env.OTP_MAIL_TIMEOUT_MS || "12000", 10),
+);
 const DATABASE_URL = String(process.env.DATABASE_URL || "").trim();
 const PG_SSL_MODE = String(
   process.env.PGSSL || process.env.PGSSLMODE || "",
@@ -430,6 +454,22 @@ function maskEmailAddress(email) {
   return `${localPart[0]}${"*".repeat(localPart.length - 2)}${localPart[localPart.length - 1]}@${domain}`;
 }
 
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timer = null;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(timeoutMessage));
+      }, timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  });
+}
+
 async function getMailTransporter() {
   if (mailTransporterPromise) {
     return mailTransporterPromise;
@@ -451,6 +491,9 @@ async function getMailTransporter() {
       hasService
         ? {
             service: process.env.SMTP_SERVICE,
+            connectionTimeout: SMTP_CONNECT_TIMEOUT_MS,
+            greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+            socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
             auth: {
               user: process.env.SMTP_USER,
               pass: process.env.SMTP_PASS,
@@ -460,6 +503,9 @@ async function getMailTransporter() {
             host: process.env.SMTP_HOST,
             port: SMTP_PORT,
             secure: SMTP_SECURE,
+            connectionTimeout: SMTP_CONNECT_TIMEOUT_MS,
+            greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+            socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
             auth: {
               user: process.env.SMTP_USER,
               pass: process.env.SMTP_PASS,
@@ -467,7 +513,11 @@ async function getMailTransporter() {
           },
     );
 
-    await transporter.verify();
+    await withTimeout(
+      transporter.verify(),
+      SMTP_VERIFY_TIMEOUT_MS,
+      `SMTP verification timed out after ${SMTP_VERIFY_TIMEOUT_MS}ms`,
+    );
     return transporter;
   })().catch((error) => {
     mailTransporterPromise = null;
@@ -490,19 +540,20 @@ async function sendSignupOtpEmail({ email, otp, name }) {
   const transporter = await getMailTransporter();
   const displayName = String(name || "").trim() || "there";
 
-  await transporter.sendMail({
-    from: MAIL_FROM,
-    to: email,
-    subject: "MusicEra email verification code",
-    text: [
-      `Hi ${displayName},`,
-      "",
-      `Your MusicEra verification code is ${otp}.`,
-      `It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
-      "",
-      "If you did not request this code, you can ignore this email.",
-    ].join("\n"),
-    html: `
+  await withTimeout(
+    transporter.sendMail({
+      from: MAIL_FROM,
+      to: email,
+      subject: "MusicEra email verification code",
+      text: [
+        `Hi ${displayName},`,
+        "",
+        `Your MusicEra verification code is ${otp}.`,
+        `It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
+        "",
+        "If you did not request this code, you can ignore this email.",
+      ].join("\n"),
+      html: `
       <div style="font-family: Arial, sans-serif; background: #0a0a1a; color: #f8fafc; padding: 32px;">
         <div style="max-width: 520px; margin: 0 auto; background: #13132a; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 28px;">
           <p style="margin: 0 0 12px;">Hi ${displayName},</p>
@@ -515,7 +566,10 @@ async function sendSignupOtpEmail({ email, otp, name }) {
         </div>
       </div>
     `,
-  });
+    }),
+    OTP_MAIL_TIMEOUT_MS,
+    `SMTP send timed out after ${OTP_MAIL_TIMEOUT_MS}ms`,
+  );
 }
 
 function getDayWeight(targetDate) {
@@ -1048,7 +1102,10 @@ app.post("/api/register/request-otp", async (req, res) => {
     try {
       if (isMailConfigured()) {
         await sendSignupOtpEmail({ email, otp, name });
-      } else if (OTP_DEV_FALLBACK_ENABLED && !isProduction) {
+      } else if (
+        OTP_DEV_FALLBACK_ENABLED &&
+        (!isProduction || OTP_ALLOW_PRODUCTION_DEV_FALLBACK)
+      ) {
         deliveryMode = "console";
         deliveryMessage =
           "SMTP is not configured. OTP generated in development mode.";
@@ -1059,10 +1116,26 @@ app.post("/api/register/request-otp", async (req, res) => {
         );
       }
     } catch (mailError) {
-      await pool.query("DELETE FROM email_verification_otps WHERE id = $1", [
-        insertResult.rows[0].id,
-      ]);
-      throw mailError;
+      const allowFallback =
+        OTP_DEV_FALLBACK_ENABLED &&
+        (!isProduction || OTP_ALLOW_PRODUCTION_DEV_FALLBACK);
+
+      if (allowFallback) {
+        deliveryMode = "console";
+        deliveryMessage =
+          "Email delivery is temporarily unavailable. OTP generated in fallback mode.";
+        console.warn(
+          `OTP fallback enabled for ${email}. Reason: ${mailError.message}`,
+        );
+        console.log(`DEV OTP for ${email}: ${otp}`);
+      } else {
+        await pool.query("DELETE FROM email_verification_otps WHERE id = $1", [
+          insertResult.rows[0].id,
+        ]);
+        throw new Error(
+          "Email delivery timed out. Please retry in a minute. If it continues, verify SMTP credentials on Render.",
+        );
+      }
     }
 
     console.log(`Signup OTP prepared for ${email} via ${deliveryMode}`);

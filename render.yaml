@@ -46,6 +46,18 @@ services:
         value: "10"
       - key: OTP_MAX_ATTEMPTS
         value: "5"
+      - key: OTP_ALLOW_PRODUCTION_DEV_FALLBACK
+        value: "true"
+      - key: SMTP_CONNECT_TIMEOUT_MS
+        value: "10000"
+      - key: SMTP_GREETING_TIMEOUT_MS
+        value: "10000"
+      - key: SMTP_SOCKET_TIMEOUT_MS
+        value: "15000"
+      - key: SMTP_VERIFY_TIMEOUT_MS
+        value: "8000"
+      - key: OTP_MAIL_TIMEOUT_MS
+        value: "12000"
       - key: FACE_AUTH_REQUEST_TIMEOUT_MS
         value: "45000"
       - key: FACE_AUTH_WORKER_STARTUP_TIMEOUT_MS
