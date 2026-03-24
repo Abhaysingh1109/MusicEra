@@ -14,7 +14,11 @@ const axios = require("axios");
 const nodemailer = require("nodemailer");
 const { existsSync } = require("fs");
 
-dotenv.config();
+const ROOT_ENV_PATH = path.join(__dirname, "..", ".env");
+const BACKEND_ENV_PATH = path.join(__dirname, ".env");
+
+dotenv.config({ path: ROOT_ENV_PATH });
+dotenv.config({ path: BACKEND_ENV_PATH, override: true });
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -34,7 +38,8 @@ const IS_RENDER =
     "RENDER_EXTERNAL_URL",
     "RENDER_EXTERNAL_HOSTNAME",
   ].some((key) => Boolean(process.env[key]));
-const LOCAL_VENV_PYTHON = path.join(__dirname, ".venv", "bin", "python3");
+const LOCAL_VENV_PYTHON = path.join(__dirname, "..", ".venv", "bin", "python3");
+const FRONTEND_DIR = path.join(__dirname, "..", "frontend");
 const ML_FEATURES_ENABLED = isTruthyEnv(
   process.env.ML_FEATURES_ENABLED || (IS_RENDER ? "false" : "true"),
 );
@@ -165,7 +170,7 @@ const PG_SSL_REJECT_UNAUTHORIZED =
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(FRONTEND_DIR));
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });
@@ -825,6 +830,9 @@ async function initializeDatabase() {
     await pool.query(`
             CREATE TABLE IF NOT EXISTS emotion_history (
                 id SERIAL PRIMARY KEY,
+          user_email VARCHAR(255),
+          emotion VARCHAR(50),
+          confidence FLOAT,
                 user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 dominant_emotion VARCHAR(50) NOT NULL,
                 emotion_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -936,6 +944,21 @@ async function initializeDatabase() {
 
     await pool.query(`
             ALTER TABLE emotion_history
+        ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)
+      `);
+
+    await pool.query(`
+        ALTER TABLE emotion_history
+        ADD COLUMN IF NOT EXISTS emotion VARCHAR(50)
+      `);
+
+    await pool.query(`
+        ALTER TABLE emotion_history
+        ADD COLUMN IF NOT EXISTS confidence FLOAT
+      `);
+
+    await pool.query(`
+        ALTER TABLE emotion_history
             ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
         `);
 
@@ -1065,7 +1088,7 @@ async function initializeDatabase() {
   }
 }
 
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/", (req, res) => res.sendFile(path.join(FRONTEND_DIR, "index.html")));
 
 app.post("/api/register", async (req, res) => {
   res.status(400).json({
@@ -1470,7 +1493,7 @@ function ensureFaceAuthWorker() {
   }
 
   faceAuthWorkerReady = new Promise((resolve, reject) => {
-    const scriptPath = path.join(__dirname, "backend", "face_auth.py");
+    const scriptPath = path.join(__dirname, "face_auth.py");
     const worker = spawn(PYTHON_BIN, [scriptPath, "--worker"], {
       cwd: __dirname,
       env: getPythonSpawnEnv(),
@@ -2216,7 +2239,7 @@ function ensureEmotionWorker() {
   }
 
   emotionWorkerReady = new Promise((resolve, reject) => {
-    const scriptPath = path.join(__dirname, "backend", "emotion_detection.py");
+    const scriptPath = path.join(__dirname, "emotion_detection.py");
     const worker = spawn(PYTHON_BIN, [scriptPath, "--worker"], {
       cwd: __dirname,
       env: getPythonSpawnEnv(),
@@ -2751,7 +2774,7 @@ app.get("/api/search-suggestions", async (req, res) => {
 
 // Fallback for 404 images
 app.get(/^\/(placeholder-audio|audio)\.(jpg|svg|png)$/, (req, res) => {
-  res.sendFile(path.join(__dirname, "audio.svg"));
+  res.sendFile(path.join(FRONTEND_DIR, "audio.svg"));
 });
 
 /* MP3 FEATURE DISABLED
