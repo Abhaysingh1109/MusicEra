@@ -60,6 +60,10 @@ services:
         value: "8000"
       - key: OTP_MAIL_TIMEOUT_MS
         value: "12000"
+      - key: SMTP_SKIP_VERIFY
+        value: "true"
+      - key: SMTP_SEND_RETRIES
+        value: "1"
       - key: FACE_AUTH_REQUEST_TIMEOUT_MS
         value: "45000"
       - key: FACE_AUTH_WORKER_STARTUP_TIMEOUT_MS

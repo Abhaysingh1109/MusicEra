@@ -144,6 +144,13 @@ const OTP_MAIL_TIMEOUT_MS = Math.max(
   3000,
   parseInt(process.env.OTP_MAIL_TIMEOUT_MS || "12000", 10),
 );
+const SMTP_SKIP_VERIFY = isTruthyEnv(
+  process.env.SMTP_SKIP_VERIFY || (IS_RENDER ? "true" : "false"),
+);
+const SMTP_SEND_RETRIES = Math.max(
+  0,
+  parseInt(process.env.SMTP_SEND_RETRIES || "1", 10),
+);
 const DATABASE_URL = String(process.env.DATABASE_URL || "").trim();
 const PG_SSL_MODE = String(
   process.env.PGSSL || process.env.PGSSLMODE || "",
@@ -162,6 +169,27 @@ app.use(express.static(path.join(__dirname)));
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });
+});
+
+app.get("/api/capabilities", (_req, res) => {
+  const faceLoginEnabled = ML_FEATURES_ENABLED && FACE_AUTH_AVAILABLE;
+
+  let faceLoginReason = "Face login is enabled.";
+  if (!ML_FEATURES_ENABLED) {
+    faceLoginReason =
+      "Face login is disabled on this deployment (ML features are turned off).";
+  } else if (!FACE_AUTH_AVAILABLE) {
+    faceLoginReason = "Face login dependencies are unavailable on this server.";
+  }
+
+  res.status(200).json({
+    success: true,
+    capabilities: {
+      faceLoginEnabled,
+      faceLoginReason,
+      emotionDetectionEnabled: ML_FEATURES_ENABLED,
+    },
+  });
 });
 
 function getPythonSpawnEnv() {
@@ -493,16 +521,29 @@ function withTimeout(promise, timeoutMs, timeoutMessage) {
   });
 }
 
+function normalizeSmtpValue(value) {
+  return String(value || "").trim();
+}
+
+function normalizeSmtpPassword(value) {
+  const raw = normalizeSmtpValue(value);
+  // Gmail app passwords are often copied with spaces; strip them safely.
+  return raw.replace(/\s+/g, "");
+}
+
 async function getMailTransporter() {
   if (mailTransporterPromise) {
     return mailTransporterPromise;
   }
 
   mailTransporterPromise = (async () => {
-    const hasService = Boolean(process.env.SMTP_SERVICE);
-    const hasHost = Boolean(process.env.SMTP_HOST);
-    const hasAuth =
-      Boolean(process.env.SMTP_USER) && Boolean(process.env.SMTP_PASS);
+    const smtpService = normalizeSmtpValue(process.env.SMTP_SERVICE);
+    const smtpHost = normalizeSmtpValue(process.env.SMTP_HOST);
+    const smtpUser = normalizeSmtpValue(process.env.SMTP_USER);
+    const smtpPass = normalizeSmtpPassword(process.env.SMTP_PASS);
+    const hasService = Boolean(smtpService);
+    const hasHost = Boolean(smtpHost);
+    const hasAuth = Boolean(smtpUser) && Boolean(smtpPass);
 
     if ((!hasService && !hasHost) || !hasAuth) {
       throw new Error(
@@ -515,7 +556,7 @@ async function getMailTransporter() {
     const transporter = nodemailer.createTransport(
       useHostTransport
         ? {
-            host: process.env.SMTP_HOST,
+            host: smtpHost,
             port: SMTP_PORT,
             secure: SMTP_SECURE,
             family: 4,
@@ -523,28 +564,30 @@ async function getMailTransporter() {
             greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
             socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
             auth: {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASS,
+              user: smtpUser,
+              pass: smtpPass,
             },
           }
         : {
-            service: process.env.SMTP_SERVICE,
+            service: smtpService,
             family: 4,
             connectionTimeout: SMTP_CONNECT_TIMEOUT_MS,
             greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
             socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
             auth: {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASS,
+              user: smtpUser,
+              pass: smtpPass,
             },
           },
     );
 
-    await withTimeout(
-      transporter.verify(),
-      SMTP_VERIFY_TIMEOUT_MS,
-      `SMTP verification timed out after ${SMTP_VERIFY_TIMEOUT_MS}ms`,
-    );
+    if (!SMTP_SKIP_VERIFY) {
+      await withTimeout(
+        transporter.verify(),
+        SMTP_VERIFY_TIMEOUT_MS,
+        `SMTP verification timed out after ${SMTP_VERIFY_TIMEOUT_MS}ms`,
+      );
+    }
     return transporter;
   })().catch((error) => {
     mailTransporterPromise = null;
@@ -564,23 +607,21 @@ function isMailConfigured() {
 }
 
 async function sendSignupOtpEmail({ email, otp, name }) {
-  const transporter = await getMailTransporter();
   const displayName = String(name || "").trim() || "there";
 
-  await withTimeout(
-    transporter.sendMail({
-      from: MAIL_FROM,
-      to: email,
-      subject: "MusicEra email verification code",
-      text: [
-        `Hi ${displayName},`,
-        "",
-        `Your MusicEra verification code is ${otp}.`,
-        `It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
-        "",
-        "If you did not request this code, you can ignore this email.",
-      ].join("\n"),
-      html: `
+  const payload = {
+    from: MAIL_FROM,
+    to: email,
+    subject: "MusicEra email verification code",
+    text: [
+      `Hi ${displayName},`,
+      "",
+      `Your MusicEra verification code is ${otp}.`,
+      `It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
+      "",
+      "If you did not request this code, you can ignore this email.",
+    ].join("\n"),
+    html: `
       <div style="font-family: Arial, sans-serif; background: #0a0a1a; color: #f8fafc; padding: 32px;">
         <div style="max-width: 520px; margin: 0 auto; background: #13132a; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 28px;">
           <p style="margin: 0 0 12px;">Hi ${displayName},</p>
@@ -593,10 +634,28 @@ async function sendSignupOtpEmail({ email, otp, name }) {
         </div>
       </div>
     `,
-    }),
-    OTP_MAIL_TIMEOUT_MS,
-    `SMTP send timed out after ${OTP_MAIL_TIMEOUT_MS}ms`,
-  );
+  };
+
+  let lastError = null;
+  for (let attempt = 0; attempt <= SMTP_SEND_RETRIES; attempt += 1) {
+    try {
+      const transporter = await getMailTransporter();
+      await withTimeout(
+        transporter.sendMail(payload),
+        OTP_MAIL_TIMEOUT_MS,
+        `SMTP send timed out after ${OTP_MAIL_TIMEOUT_MS}ms`,
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      mailTransporterPromise = null;
+      if (attempt >= SMTP_SEND_RETRIES) {
+        break;
+      }
+    }
+  }
+
+  throw lastError || new Error("Unable to send OTP email");
 }
 
 function getDayWeight(targetDate) {
@@ -1159,8 +1218,21 @@ app.post("/api/register/request-otp", async (req, res) => {
         await pool.query("DELETE FROM email_verification_otps WHERE id = $1", [
           insertResult.rows[0].id,
         ]);
+        const rawError = String(mailError?.message || "");
+        const authError =
+          /invalid login|username and password not accepted|auth|535/i.test(
+            rawError,
+          );
+        const timeoutError = /timed out|timeout|etimedout|esocket/i.test(
+          rawError,
+        );
+
         throw new Error(
-          "Email delivery timed out. Please retry in a minute. If it continues, verify SMTP credentials on Render.",
+          authError
+            ? "Email authentication failed. Verify SMTP_USER and SMTP_PASS (use Gmail App Password) in Render environment variables."
+            : timeoutError
+              ? "Email delivery timed out. Please retry in a minute. If it continues, verify SMTP credentials/network on Render."
+              : "Email delivery failed. Verify SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS and MAIL_FROM on Render.",
         );
       }
     }
