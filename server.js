@@ -8,23 +8,83 @@ const readline = require("readline");
 const fs = require("fs/promises");
 const os = require("os");
 const crypto = require("crypto");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const dotenv = require("dotenv");
 const axios = require("axios");
 const nodemailer = require("nodemailer");
+const { existsSync } = require("fs");
 
 dotenv.config();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const HOST = process.env.HOST || "0.0.0.0";
-const PYTHON_BIN = process.env.PYTHON_BIN || "python3";
+function isTruthyEnv(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+}
+
+const IS_RENDER =
+  isTruthyEnv(process.env.RENDER) ||
+  [
+    "RENDER_SERVICE_ID",
+    "RENDER_INSTANCE_ID",
+    "RENDER_EXTERNAL_URL",
+    "RENDER_EXTERNAL_HOSTNAME",
+  ].some((key) => Boolean(process.env[key]));
+const LOCAL_VENV_PYTHON = path.join(__dirname, ".venv", "bin", "python3");
+
+function pythonHasDeepFace(pythonBin) {
+  try {
+    const probe = spawnSync(
+      pythonBin,
+      ["-c", "import numpy, cv2, deepface; print('ok')"],
+      {
+        timeout: 12000,
+        stdio: ["ignore", "ignore", "ignore"],
+      },
+    );
+    return probe.status === 0;
+  } catch (error) {
+    return false;
+  }
+}
+
+function resolvePythonBin() {
+  if (process.env.PYTHON_BIN) {
+    return process.env.PYTHON_BIN;
+  }
+
+  const candidates = [];
+  if (existsSync(LOCAL_VENV_PYTHON)) {
+    candidates.push(LOCAL_VENV_PYTHON);
+  }
+  candidates.push("python3");
+
+  for (const candidate of candidates) {
+    if (pythonHasDeepFace(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[candidates.length - 1] || "python3";
+}
+
+const PYTHON_BIN = resolvePythonBin();
+const FACE_AUTH_AVAILABLE = pythonHasDeepFace(PYTHON_BIN);
 const EMOTION_REQUEST_TIMEOUT_MS = parseInt(
   process.env.EMOTION_REQUEST_TIMEOUT_MS || "6000",
   10,
 );
 const FACE_AUTH_REQUEST_TIMEOUT_MS = parseInt(
-  process.env.FACE_AUTH_REQUEST_TIMEOUT_MS || "12000",
+  process.env.FACE_AUTH_REQUEST_TIMEOUT_MS || (IS_RENDER ? "45000" : "12000"),
+  10,
+);
+const FACE_AUTH_WORKER_STARTUP_TIMEOUT_MS = parseInt(
+  process.env.FACE_AUTH_WORKER_STARTUP_TIMEOUT_MS ||
+    (IS_RENDER ? "90000" : "30000"),
   10,
 );
 const OTP_EXPIRY_MINUTES = Math.max(
@@ -67,23 +127,11 @@ app.get("/health", (_req, res) => {
 });
 
 function getPythonSpawnEnv() {
-  const pythonVersion = process.env.PYTHON_VERSION || "3.9";
-  const userSitePackages = path.join(
-    os.homedir(),
-    "Library",
-    "Python",
-    pythonVersion,
-    "lib",
-    "python",
-    "site-packages",
-  );
-
   return {
     ...process.env,
-    PYTHONNOUSERSITE: "",
-    PYTHONPATH: process.env.PYTHONPATH
-      ? `${userSitePackages}:${process.env.PYTHONPATH}`
-      : userSitePackages,
+    PYTHONNOUSERSITE: "1",
+    PYTHONPATH: "",
+    PYTHONHOME: "",
   };
 }
 
@@ -1210,6 +1258,22 @@ function rejectPendingFaceAuthRequests(error) {
   pendingFaceAuthRequests.clear();
 }
 
+function isFaceValidationError(message) {
+  const text = String(message || "").toLowerCase();
+  return [
+    "no clear face detected",
+    "only one face can be visible",
+    "move closer to the camera",
+    "center your face",
+    "keep your face fully visible",
+    "unable to isolate the face region",
+    "face embedding failed",
+    "unable to read image",
+    "no valid face samples",
+    "invalid image payload",
+  ].some((token) => text.includes(token));
+}
+
 function ensureFaceAuthWorker() {
   if (faceAuthWorkerReady) {
     return faceAuthWorkerReady;
@@ -1226,20 +1290,34 @@ function ensureFaceAuthWorker() {
     faceAuthWorkerProcess = worker;
     let settled = false;
     let stderrBuffer = "";
+    const startupTimeout = setTimeout(() => {
+      settleReject(
+        new Error(
+          `Face auth worker startup timed out after ${FACE_AUTH_WORKER_STARTUP_TIMEOUT_MS}ms`,
+        ),
+      );
+      worker.kill();
+    }, FACE_AUTH_WORKER_STARTUP_TIMEOUT_MS);
 
     const stdoutReader = readline.createInterface({
       input: worker.stdout,
       crlfDelay: Infinity,
     });
 
-    settled = true;
-    resolve();
-
     const settleReject = (error) => {
       if (!settled) {
+        clearTimeout(startupTimeout);
         settled = true;
         faceAuthWorkerReady = null;
         reject(error);
+      }
+    };
+
+    const settleResolve = () => {
+      if (!settled) {
+        clearTimeout(startupTimeout);
+        settled = true;
+        resolve();
       }
     };
 
@@ -1249,6 +1327,11 @@ function ensureFaceAuthWorker() {
       try {
         payload = JSON.parse(line);
       } catch (error) {
+        return;
+      }
+
+      if (payload?.type === "ready") {
+        settleResolve();
         return;
       }
 
@@ -1298,6 +1381,12 @@ function ensureFaceAuthWorker() {
 }
 
 async function runPythonFaceEmbedding(imagePaths = []) {
+  if (!FACE_AUTH_AVAILABLE) {
+    throw new Error(
+      "FACE_AUTH_NOT_CONFIGURED: Python face-auth dependency 'deepface' is not installed.",
+    );
+  }
+
   await ensureFaceAuthWorker();
 
   return new Promise((resolve, reject) => {
@@ -1801,9 +1890,28 @@ app.post("/api/face-login", async (req, res) => {
     });
   } catch (error) {
     console.error("Face login error:", error);
-    res.status(500).json({
+    const message = String(error?.message || "");
+    const timedOut = /timed out/i.test(message);
+    const missingDeepFace =
+      /no module named ['\"]?deepface['\"]?/i.test(message) ||
+      /FACE_AUTH_NOT_CONFIGURED/i.test(message);
+    const validationError = isFaceValidationError(message);
+    const statusCode = missingDeepFace
+      ? 503
+      : timedOut
+        ? 504
+        : validationError
+          ? 422
+          : 500;
+
+    res.status(statusCode).json({
       success: false,
-      message: error.message || "Error with face login",
+      code: missingDeepFace ? "FACE_AUTH_NOT_CONFIGURED" : undefined,
+      message: timedOut
+        ? "Face verification is taking longer than expected. Please retry in a few seconds or use email/password login."
+        : missingDeepFace
+          ? "Face login is not configured on this server. Install Python face-auth dependencies and restart the server."
+          : message || "Error with face login",
     });
   } finally {
     await Promise.all(
@@ -1878,9 +1986,28 @@ app.post("/api/save-face", async (req, res) => {
     });
   } catch (error) {
     console.error("Save face error:", error);
-    res.status(500).json({
+    const message = String(error?.message || "");
+    const timedOut = /timed out/i.test(message);
+    const missingDeepFace =
+      /no module named ['\"]?deepface['\"]?/i.test(message) ||
+      /FACE_AUTH_NOT_CONFIGURED/i.test(message);
+    const validationError = isFaceValidationError(message);
+    const statusCode = missingDeepFace
+      ? 503
+      : timedOut
+        ? 504
+        : validationError
+          ? 422
+          : 500;
+
+    res.status(statusCode).json({
       success: false,
-      message: error.message || "Error saving face data",
+      code: missingDeepFace ? "FACE_AUTH_NOT_CONFIGURED" : undefined,
+      message: timedOut
+        ? "Face enrollment is taking longer than expected. Please retry in a few seconds."
+        : missingDeepFace
+          ? "Face enrollment is not configured on this server. Install Python face-auth dependencies and restart the server."
+          : message || "Error saving face data",
     });
   } finally {
     await Promise.all(
@@ -2844,6 +2971,13 @@ app.post("/api/recommendations", async (req, res) => {
 
 async function startServer() {
   console.log("🚀 Starting MusicEra server...");
+  console.log(`🐍 Python binary: ${PYTHON_BIN}`);
+  console.log(`🧪 DeepFace available: ${FACE_AUTH_AVAILABLE ? "yes" : "no"}`);
+  if (!FACE_AUTH_AVAILABLE) {
+    console.warn(
+      "⚠️ Face authentication is disabled: missing Python dependency 'deepface'.",
+    );
+  }
   await initializeDatabase();
   try {
     console.log("🧠 Warming emotion detection worker...");
