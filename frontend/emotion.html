@@ -1962,10 +1962,19 @@
           emotionVideo.srcObject = emotionStream;
           cameraGuidanceEl.textContent =
             "Keep your face near the center and hold the expression for a moment. Detection updates automatically.";
-          setEmotionStatus("success", "Camera is live. Detecting emotion...");
+          setEmotionStatus(
+            "success",
+            "Camera is live. Starting emotion scan...",
+          );
 
           await emotionVideo.play();
-          await detectEmotionNow();
+
+          // Start first detection asynchronously so camera appears instantly.
+          window.setTimeout(() => {
+            if (emotionStream) {
+              detectEmotionNow();
+            }
+          }, 50);
         } catch (error) {
           console.error("Camera access error:", error);
           setEmotionStatus(
@@ -2058,10 +2067,31 @@
             error.name === "AbortError"
               ? "Detection took too long. Retrying..."
               : error.message || "Emotion detection failed.";
-          setEmotionStatus("error", message);
-          dominantEmotionEl.textContent =
-            lastSuccessfulEmotion || "Detection failed";
-          emotionHelperEl.textContent = message;
+
+          const isTransientIssue = (() => {
+            const normalized = String(error?.message || "").toLowerCase();
+            return (
+              normalized.includes("no clear face detected") ||
+              normalized.includes("no face detected") ||
+              normalized.includes("center your face") ||
+              normalized.includes("took too long")
+            );
+          })();
+
+          if (!lastSuccessfulEmotion && isTransientIssue) {
+            setEmotionStatus(
+              "info",
+              "Looking for your face. Keep centered and hold still...",
+            );
+            dominantEmotionEl.textContent = "Scanning face";
+            emotionHelperEl.textContent =
+              "Keep your face near the center with good lighting. Detection will start automatically.";
+          } else {
+            setEmotionStatus("error", message);
+            dominantEmotionEl.textContent =
+              lastSuccessfulEmotion;
+            emotionHelperEl.textContent = message;
+          }
         } finally {
           window.clearTimeout(timeoutId);
           activeDetectionController = null;

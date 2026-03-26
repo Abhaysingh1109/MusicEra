@@ -270,6 +270,8 @@ let detectionIntervalId = null;
 let scanToken = 0;
 let stableDetectionCount = 0;
 let captureInProgress = false;
+let faceEnrollmentAttemptId = 0;
+let handledFaceEnrollmentAttemptId = 0;
 let serverFaceLoginEnabled = true;
 let serverFaceLoginReason = "";
 const FACE_LOGIN_SAMPLE_COUNT = 1;
@@ -823,6 +825,7 @@ function skipFaceSetup() {
 // Start face setup (from post-signup modal)
 function startFaceSetup() {
   if (!enableFaceToggle.checked) return;
+  faceEnrollmentAttemptId += 1;
   currentMode = "signup-setup";
   document.getElementById("faceModalTitle").textContent = "Set Up Face ID";
   document.getElementById("faceModalDesc").textContent =
@@ -892,6 +895,7 @@ function toggleManualLogin() {
 
 // Start Face Setup from Login page (for users who haven't set up face yet)
 function startFaceSetupFromLogin() {
+  faceEnrollmentAttemptId += 1;
   currentMode = "login-setup";
   document.getElementById("faceModalTitle").textContent = "Set Up Face ID";
   document.getElementById("faceModalDesc").textContent =
@@ -1215,6 +1219,17 @@ async function submitFaceFrames(frames) {
       }, 180);
       return;
     }
+
+    // Guard against duplicate callbacks from overlapping detection ticks.
+    if (
+      faceEnrollmentAttemptId > 0 &&
+      handledFaceEnrollmentAttemptId === faceEnrollmentAttemptId
+    ) {
+      return;
+    }
+
+    handledFaceEnrollmentAttemptId =
+      faceEnrollmentAttemptId || handledFaceEnrollmentAttemptId + 1;
 
     updateFaceStatus("success", "Face ID enabled successfully!");
 
