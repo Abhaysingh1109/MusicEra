@@ -2,6 +2,8 @@
   "name": "musicera-workspace",
   "private": true,
   "scripts": {
+    "postinstall": "npm --prefix backend install --omit=dev",
+    "build": "npm --prefix backend install --omit=dev",
     "start": "npm --prefix backend start",
     "dev": "npm --prefix backend run dev",
     "test:connections": "node backend/test-connections.js"
