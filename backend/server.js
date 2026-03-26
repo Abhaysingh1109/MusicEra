@@ -530,6 +530,25 @@ function normalizeSmtpValue(value) {
   return String(value || "").trim();
 }
 
+function resolveMailFromAddress() {
+  const rawFrom = normalizeSmtpValue(MAIL_FROM);
+  const smtpUser = normalizeSmtpValue(process.env.SMTP_USER);
+
+  if (!rawFrom) {
+    return smtpUser || "no-reply@musicera.local";
+  }
+
+  // Normalize a common mistake: "MusicEra : user@example.com" -> "MusicEra <user@example.com>"
+  const colonFormatMatch = rawFrom.match(/^(.+?)\s*:\s*([^\s@]+@[^\s@]+)$/);
+  if (colonFormatMatch) {
+    const displayName = colonFormatMatch[1].trim();
+    const email = colonFormatMatch[2].trim();
+    return displayName ? `${displayName} <${email}>` : email;
+  }
+
+  return rawFrom;
+}
+
 function normalizeSmtpPassword(value) {
   const raw = normalizeSmtpValue(value);
   // Gmail app passwords are often copied with spaces; strip them safely.
@@ -615,7 +634,7 @@ async function sendSignupOtpEmail({ email, otp, name }) {
   const displayName = String(name || "").trim() || "there";
 
   const payload = {
-    from: MAIL_FROM,
+    from: resolveMailFromAddress(),
     to: email,
     subject: "MusicEra email verification code",
     text: [
