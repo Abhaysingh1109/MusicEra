@@ -91,8 +91,8 @@ function resolvePythonBin() {
   return candidates[candidates.length - 1] || "python3";
 }
 
-const PYTHON_BIN = resolvePythonBin();
-const FACE_AUTH_AVAILABLE = pythonHasDeepFace(PYTHON_BIN);
+let PYTHON_BIN = resolvePythonBin();
+let FACE_AUTH_AVAILABLE = pythonHasDeepFace(PYTHON_BIN);
 const EMOTION_REQUEST_TIMEOUT_MS = parseInt(
   process.env.EMOTION_REQUEST_TIMEOUT_MS || "6000",
   10,
@@ -1614,9 +1614,17 @@ function ensureFaceAuthWorker() {
 
 async function runPythonFaceEmbedding(imagePaths = []) {
   if (!FACE_AUTH_AVAILABLE) {
-    throw new Error(
-      "FACE_AUTH_NOT_CONFIGURED: Python face-auth dependency 'deepface' is not installed.",
-    );
+    const refreshedPythonBin = resolvePythonBin();
+    const refreshedAvailability = pythonHasDeepFace(refreshedPythonBin);
+
+    if (refreshedAvailability) {
+      PYTHON_BIN = refreshedPythonBin;
+      FACE_AUTH_AVAILABLE = true;
+    } else {
+      throw new Error(
+        "FACE_AUTH_NOT_CONFIGURED: Python face-auth dependency 'deepface' is not installed.",
+      );
+    }
   }
 
   await ensureFaceAuthWorker();
