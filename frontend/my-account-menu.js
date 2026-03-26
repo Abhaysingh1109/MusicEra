@@ -435,13 +435,26 @@
     });
   }
 
-  function formatDate(isoValue) {
-    if (!isoValue) {
-      return "Not available";
+  function parseServerTimestamp(value) {
+    if (!value) {
+      return null;
     }
 
-    const dt = new Date(isoValue);
-    if (Number.isNaN(dt.getTime())) {
+    const raw = String(value).trim();
+    if (!raw) {
+      return null;
+    }
+
+    // If backend value has no timezone marker, treat it as UTC.
+    const hasTimezone = /([zZ]|[+\-]\d{2}:?\d{2})$/.test(raw);
+    const normalized = hasTimezone ? raw : `${raw.replace(/\s+/g, "T")}Z`;
+    const dt = new Date(normalized);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function formatDate(isoValue) {
+    const dt = parseServerTimestamp(isoValue);
+    if (!dt) {
       return "Not available";
     }
 
