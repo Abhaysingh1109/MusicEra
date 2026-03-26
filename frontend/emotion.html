@@ -567,6 +567,38 @@
         margin-top: 18px;
       }
 
+      .history-list-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .history-list-header h3 {
+        margin: 0;
+      }
+
+      .history-ui-clear-btn {
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+        background: rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+      }
+
+      .history-ui-clear-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.16);
+        border-color: rgba(255, 255, 255, 0.38);
+      }
+
+      .history-ui-clear-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
       .history-entry {
         padding: 16px 18px;
         border-radius: 18px;
@@ -1555,11 +1587,17 @@
           </section>
 
           <aside class="history-list-panel">
-            <h3>Recent Entries</h3>
-            <p class="emotion-helper">
-              Each saved detection is listed with its dominant emotion and
-              timestamp.
-            </p>
+            <div class="history-list-header">
+              <h3>Recent Entries</h3>
+              <button
+                type="button"
+                class="history-ui-clear-btn"
+                id="clearHistoryUiBtn"
+                onclick="clearEmotionHistoryFromUi()"
+              >
+                Clear UI History
+              </button>
+            </div>
             <div class="history-list" id="historyList"></div>
           </aside>
         </div>
@@ -1645,11 +1683,13 @@
       const historyChartEl = document.getElementById("historyChart");
       const historyLegendEl = document.getElementById("historyLegend");
       const historyListEl = document.getElementById("historyList");
+      const clearHistoryUiBtn = document.getElementById("clearHistoryUiBtn");
 
       let emotionStream = null;
       let detectionTimer = null;
       let detectionInFlight = false;
       let emotionHistory = [];
+      let emotionSmoothingFrames = [];
       let lastSuccessfulEmotion = null;
       let activeDetectionController = null;
       let faceApiReady = false;
@@ -1751,6 +1791,144 @@
         window.location.href = "index.html";
       }
 
+      const historyUiClearBeforeKey = (() => {
+        const identity = userData.id
+          ? `id:${userData.id}`
+          : userData.email
+            ? `email:${String(userData.email).trim().toLowerCase()}`
+            : "guest";
+        return `musicera:emotion-history-ui-clear-before:${identity}`;
+      })();
+
+      function getEmotionHistoryUiClearMarker() {
+        try {
+          const raw = localStorage.getItem(historyUiClearBeforeKey);
+          if (!raw) {
+            return { beforeId: 0, beforeMs: 0 };
+          }
+
+          // Backward compatibility with old numeric-only cutoff.
+          if (/^\d+$/.test(raw)) {
+            const legacyMs = Number(raw);
+            return {
+              beforeId: 0,
+              beforeMs:
+                Number.isFinite(legacyMs) && legacyMs > 0 ? legacyMs : 0,
+            };
+          }
+
+          const parsed = JSON.parse(raw);
+          const beforeId = Number(parsed?.beforeId || 0);
+          const beforeMs = Number(parsed?.beforeMs || 0);
+
+          return {
+            beforeId: Number.isFinite(beforeId) && beforeId > 0 ? beforeId : 0,
+            beforeMs: Number.isFinite(beforeMs) && beforeMs > 0 ? beforeMs : 0,
+          };
+        } catch (_error) {
+          return { beforeId: 0, beforeMs: 0 };
+        }
+      }
+
+      function setEmotionHistoryUiClearMarker(marker) {
+        try {
+          const beforeId = Number(marker?.beforeId || 0);
+          const beforeMs = Number(marker?.beforeMs || 0);
+
+          if (
+            (Number.isFinite(beforeId) && beforeId > 0) ||
+            (Number.isFinite(beforeMs) && beforeMs > 0)
+          ) {
+            localStorage.setItem(
+              historyUiClearBeforeKey,
+              JSON.stringify({
+                beforeId:
+                  Number.isFinite(beforeId) && beforeId > 0 ? beforeId : 0,
+                beforeMs:
+                  Number.isFinite(beforeMs) && beforeMs > 0 ? beforeMs : 0,
+              }),
+            );
+          } else {
+            localStorage.removeItem(historyUiClearBeforeKey);
+          }
+        } catch (_error) {
+          // Ignore storage write issues in restricted/private browsers.
+        }
+      }
+
+      function migrateAndSanitizeHistoryClearMarker(history) {
+        const marker = getEmotionHistoryUiClearMarker();
+        if (!marker.beforeId && !marker.beforeMs) {
+          return;
+        }
+
+        const nowMs = Date.now();
+        const safeBeforeMs =
+          marker.beforeMs > nowMs + 60_000 ? nowMs : marker.beforeMs;
+
+        // Legacy markers may only contain a timestamp; derive a stable id cutoff.
+        if (!marker.beforeId && safeBeforeMs > 0 && Array.isArray(history)) {
+          const derivedId = history.reduce((maxId, entry) => {
+            const entryId = Number(entry?.id || 0);
+            const detectedAt = parseHistoryTimestamp(entry?.detectedAt);
+            if (!Number.isFinite(entryId) || entryId <= 0 || !detectedAt) {
+              return maxId;
+            }
+
+            return detectedAt.getTime() <= safeBeforeMs
+              ? Math.max(maxId, entryId)
+              : maxId;
+          }, 0);
+
+          if (derivedId > 0 || safeBeforeMs !== marker.beforeMs) {
+            setEmotionHistoryUiClearMarker({
+              beforeId: derivedId,
+              beforeMs: safeBeforeMs,
+            });
+          }
+          return;
+        }
+
+        if (safeBeforeMs !== marker.beforeMs) {
+          setEmotionHistoryUiClearMarker({
+            beforeId: marker.beforeId,
+            beforeMs: safeBeforeMs,
+          });
+        }
+      }
+
+      function filterHistoryForUi(history) {
+        const marker = getEmotionHistoryUiClearMarker();
+        if (!marker.beforeId && !marker.beforeMs) {
+          return history;
+        }
+
+        return history.filter((entry) => {
+          const entryId = Number(entry?.id || 0);
+          if (marker.beforeId && Number.isFinite(entryId) && entryId > 0) {
+            return entryId > marker.beforeId;
+          }
+
+          const detectedAt = parseHistoryTimestamp(entry?.detectedAt);
+          if (marker.beforeMs && detectedAt) {
+            return detectedAt.getTime() > marker.beforeMs;
+          }
+
+          // If we can't compare by id or time, keep the entry visible.
+          return true;
+        });
+      }
+
+      function updateHistoryUiToggleButtonState() {
+        if (!clearHistoryUiBtn) {
+          return;
+        }
+
+        const visibleEntries = filterHistoryForUi(emotionHistory);
+        clearHistoryUiBtn.textContent = "Clear UI History";
+        clearHistoryUiBtn.disabled = visibleEntries.length === 0;
+      }
+
       // Populate navbar user info
       document.getElementById("navbarUserName").textContent =
         userData.name || "User";
@@ -1820,7 +1998,7 @@
 
         emotionVideo.srcObject = null;
         detectionInFlight = false;
-        emotionHistory = [];
+        emotionSmoothingFrames = [];
         lastSuccessfulEmotion = null;
         lastFaceBox = null;
         setEmotionStatus("info", "Waiting to start camera...");
@@ -1991,19 +2169,28 @@
         historyLegendEl.innerHTML = "";
         historySummaryEl.innerHTML = "";
         historyListEl.innerHTML = "";
+        if (clearHistoryUiBtn) {
+          clearHistoryUiBtn.disabled = true;
+        }
         setHistoryStatus("info", "Loading emotion history...");
 
         try {
           const history = await fetchEmotionHistory();
-          renderHistorySummary(history);
-          renderHistoryChart(history);
-          renderHistoryList(history);
+          emotionHistory = history;
+          migrateAndSanitizeHistoryClearMarker(history);
+          const visibleHistory = filterHistoryForUi(history);
+          renderHistorySummary(visibleHistory);
+          renderHistoryChart(visibleHistory);
+          renderHistoryList(visibleHistory);
           setHistoryStatus(
             "success",
-            history.length
+            visibleHistory.length
               ? "Emotion history loaded."
-              : "No saved emotion history yet.",
+              : history.length
+                ? "Previously cleared entries stay hidden in UI. New detections will appear here."
+                : "No saved emotion history yet.",
           );
+          updateHistoryUiToggleButtonState();
         } catch (error) {
           console.error("Emotion history load failed:", error);
           setHistoryStatus(
@@ -2011,7 +2198,52 @@
             error.message || "Failed to load emotion history.",
           );
           historyChartEl.innerHTML = `<div class="history-chart-empty">Unable to load your emotion history right now.</div>`;
+          updateHistoryUiToggleButtonState();
         }
+      }
+
+      function clearEmotionHistoryFromUi() {
+        if (!emotionHistory.length) {
+          return;
+        }
+
+        const visibleHistory = filterHistoryForUi(emotionHistory);
+
+        if (!visibleHistory.length) {
+          setHistoryStatus(
+            "success",
+            "History is already cleared in UI. New detections will appear automatically.",
+          );
+          updateHistoryUiToggleButtonState();
+          return;
+        }
+
+        const latestVisibleId = visibleHistory.reduce((maxId, entry) => {
+          const id = Number(entry?.id || 0);
+          return Number.isFinite(id) ? Math.max(maxId, id) : maxId;
+        }, 0);
+
+        const latestVisibleTimestamp = visibleHistory
+          .map((entry) => parseHistoryTimestamp(entry?.detectedAt))
+          .filter((dt) => Boolean(dt))
+          .reduce((maxMs, dt) => Math.max(maxMs, dt.getTime()), 0);
+
+        const cutoffMs = latestVisibleTimestamp;
+        setEmotionHistoryUiClearMarker({
+          beforeId: latestVisibleId,
+          beforeMs: cutoffMs,
+        });
+
+        const filteredHistory = filterHistoryForUi(emotionHistory);
+        renderHistorySummary(filteredHistory);
+        renderHistoryChart(filteredHistory);
+        renderHistoryList(filteredHistory);
+        setHistoryStatus(
+          "success",
+          "History cleared from UI. Cleared entries cannot be shown again here. Database records are unchanged.",
+        );
+
+        updateHistoryUiToggleButtonState();
       }
 
       function closeEmotionHistory() {
@@ -2121,14 +2353,27 @@
       }
 
       function smoothEmotionResult(emotions) {
-        emotionHistory.push(emotions);
-        if (emotionHistory.length > SMOOTHING_FRAME_WINDOW) {
-          emotionHistory.shift();
+        const normalizedFrame = Array.isArray(emotions)
+          ? emotions
+          : emotions && typeof emotions === "object"
+            ? Object.entries(emotions).map(([label, score]) => ({
+                label,
+                score,
+              }))
+            : [];
+
+        emotionSmoothingFrames.push(normalizedFrame);
+        if (emotionSmoothingFrames.length > SMOOTHING_FRAME_WINDOW) {
+          emotionSmoothingFrames.shift();
         }
 
         const scoreMap = new Map();
-        const baseWeight = 1 / emotionHistory.length;
-        emotionHistory.forEach((frameEmotions) => {
+        const baseWeight = 1 / Math.max(1, emotionSmoothingFrames.length);
+        emotionSmoothingFrames.forEach((frameEmotions) => {
+          if (!Array.isArray(frameEmotions)) {
+            return;
+          }
+
           frameEmotions.forEach((emotion) => {
             const label = String(emotion.label || "");
             scoreMap.set(
@@ -2705,16 +2950,39 @@
           .replace(/\b\w/g, (char) => char.toUpperCase());
       }
 
+      function parseHistoryTimestamp(value) {
+        if (!value) {
+          return null;
+        }
+
+        if (value instanceof Date) {
+          return Number.isNaN(value.getTime()) ? null : value;
+        }
+
+        const raw = String(value).trim();
+        if (!raw) {
+          return null;
+        }
+
+        // If timezone info is missing, treat backend value as UTC.
+        const hasTimezone = /([zZ]|[+\-]\d{2}:?\d{2})$/.test(raw);
+        const normalized = hasTimezone
+          ? raw
+          : `${raw.replace(" ", "T").replace(" ", "T")}Z`;
+        const date = new Date(normalized);
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+
       function formatChartDate(value) {
-        const date = new Date(value);
-        return Number.isNaN(date.getTime())
+        const date = parseHistoryTimestamp(value);
+        return !date
           ? "--"
           : date.toLocaleDateString([], { month: "short", day: "numeric" });
       }
 
       function formatDateTime(value) {
-        const date = new Date(value);
-        return Number.isNaN(date.getTime())
+        const date = parseHistoryTimestamp(value);
+        return !date
           ? "Unknown date"
           : date.toLocaleString([], {
               month: "short",

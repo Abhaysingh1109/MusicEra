@@ -1728,7 +1728,9 @@ app.get("/api/account", async (req, res) => {
     }
 
     const userResult = await pool.query(
-      `SELECT id, name, email, created_at, profile_photo,
+      `SELECT id, name, email,
+              (created_at AT TIME ZONE 'UTC') AS created_at_utc,
+              profile_photo,
               CASE
                 WHEN face_descriptor IS NOT NULL
                   AND face_descriptor != 'null'
@@ -1760,6 +1762,13 @@ app.get("/api/account", async (req, res) => {
 
     const preferences = preferencesResult.rows[0] || {};
 
+    const createdAtUtc =
+      user.created_at_utc instanceof Date
+        ? user.created_at_utc.toISOString()
+        : user.created_at_utc
+          ? `${String(user.created_at_utc).replace(/\s+/g, "T")}Z`
+          : null;
+
     return res.json({
       success: true,
       account: {
@@ -1768,7 +1777,7 @@ app.get("/api/account", async (req, res) => {
         email: user.email,
         hasFace: Boolean(user.has_face),
         profilePhoto: user.profile_photo || null,
-        createdAt: user.created_at,
+        createdAt: createdAtUtc,
         preferredEras: preferences.preferred_eras || [],
         preferredLanguages: preferences.preferred_languages || [],
       },
@@ -2484,9 +2493,21 @@ app.post("/api/emotion-history", async (req, res) => {
       ],
     );
 
+    const savedEntry = result.rows[0] || {};
+    // Store timestamps in UTC semantics and always return an explicit ISO value.
+    const detectedAtUtc =
+      savedEntry.detected_at instanceof Date
+        ? savedEntry.detected_at.toISOString()
+        : savedEntry.detected_at
+          ? `${String(savedEntry.detected_at).replace(/\s+/g, "T")}Z`
+          : null;
+
     res.json({
       success: true,
-      entry: result.rows[0],
+      entry: {
+        ...savedEntry,
+        detected_at: detectedAtUtc,
+      },
     });
   } catch (error) {
     console.error("Emotion history save error:", error);
@@ -2527,7 +2548,8 @@ app.get("/api/emotion-history", async (req, res) => {
     }
 
     const historyResult = await pool.query(
-      `SELECT id, user_id, dominant_emotion, emotion_scores, detected_at
+      `SELECT id, user_id, dominant_emotion, emotion_scores,
+              (detected_at AT TIME ZONE 'UTC') AS detected_at
        FROM (
          SELECT id, user_id, dominant_emotion, emotion_scores, detected_at
          FROM emotion_history
