@@ -3,6 +3,7 @@ import math
 import sys
 import warnings
 from pathlib import Path
+from typing import Any
 
 try:
     from urllib3.exceptions import NotOpenSSLWarning
@@ -17,10 +18,12 @@ from deepface import DeepFace
 
 
 MODEL_WARMED = False
+CV2_DATA = getattr(cv2, "data", None)  # pyright: ignore[reportAttributeAccessIssue]
+HAAR_CASCADE_DIR = getattr(CV2_DATA, "haarcascades", "")
 FACE_CASCADE = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    HAAR_CASCADE_DIR + "haarcascade_frontalface_default.xml"
 )
-EYE_CASCADE = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+EYE_CASCADE = cv2.CascadeClassifier(HAAR_CASCADE_DIR + "haarcascade_eye.xml")
 
 
 def warm_face_model():
@@ -161,7 +164,7 @@ def analyze_face_quality(frame_bgr, face_box):
 def build_embedding(face_bgr):
     face_rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
 
-    result = DeepFace.represent(
+    raw_result = DeepFace.represent(
         img_path=face_rgb,
         model_name="Facenet512",
         enforce_detection=False,
@@ -169,8 +172,16 @@ def build_embedding(face_bgr):
         normalization="Facenet2018",
     )
 
-    if isinstance(result, list):
-        result = result[0] if result else {}
+    result: dict[str, Any]
+    if isinstance(raw_result, list):
+        first_result = raw_result[0] if raw_result else {}
+        if not isinstance(first_result, dict):
+            raise ValueError("Unexpected embedding payload from DeepFace.")
+        result = first_result
+    elif isinstance(raw_result, dict):
+        result = raw_result
+    else:
+        raise ValueError("Unexpected embedding payload from DeepFace.")
 
     embedding = result.get("embedding")
     if not embedding:
@@ -204,6 +215,8 @@ def analyze_images(image_paths):
         quality_info, quality_error = analyze_face_quality(frame, face_box)
         if quality_error:
             return {"error": quality_error}
+        if quality_info is None:
+            return {"error": "Face analysis did not return quality metadata."}
 
         try:
             embedding = build_embedding(quality_info["crop"])
