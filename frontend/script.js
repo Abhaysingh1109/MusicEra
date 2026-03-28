@@ -654,11 +654,15 @@ async function requestSignupOtp(signupPayload, isResend = false) {
       data.maskedEmail || maskEmail(pendingSignupPayload.email);
 
     openOtpModal();
+    const serverMessage = String(data.message || "").trim();
+    const isConsoleDelivery = data.deliveryMode === "console";
+
     setOtpStatus(
-      "success",
-      isResend
-        ? `A new OTP was sent to ${pendingMaskedEmail}.`
-        : `OTP sent to ${pendingMaskedEmail}.`,
+      isConsoleDelivery ? "warning" : "success",
+      serverMessage ||
+        (isResend
+          ? `A new OTP was sent to ${pendingMaskedEmail}.`
+          : `OTP sent to ${pendingMaskedEmail}.`),
     );
 
     if (data.devOtp) {

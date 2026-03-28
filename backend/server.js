@@ -147,14 +147,17 @@ const SMTP_VERIFY_TIMEOUT_MS = Math.max(
 );
 const OTP_MAIL_TIMEOUT_MS = Math.max(
   3000,
-  parseInt(process.env.OTP_MAIL_TIMEOUT_MS || "12000", 10),
+  parseInt(
+    process.env.OTP_MAIL_TIMEOUT_MS || (IS_RENDER ? "8000" : "12000"),
+    10,
+  ),
 );
 const SMTP_SKIP_VERIFY = isTruthyEnv(
   process.env.SMTP_SKIP_VERIFY || (IS_RENDER ? "true" : "false"),
 );
 const SMTP_SEND_RETRIES = Math.max(
   0,
-  parseInt(process.env.SMTP_SEND_RETRIES || "1", 10),
+  parseInt(process.env.SMTP_SEND_RETRIES || (IS_RENDER ? "0" : "1"), 10),
 );
 const DATABASE_URL = String(process.env.DATABASE_URL || "").trim();
 const PG_SSL_MODE = String(
@@ -167,6 +170,13 @@ const PG_SSL_ENABLED =
 const PG_SSL_REJECT_UNAUTHORIZED =
   String(process.env.PGSSL_REJECT_UNAUTHORIZED || "false").toLowerCase() ===
   "true";
+
+function isProductionLikeRuntime() {
+  return (
+    String(process.env.NODE_ENV || "").toLowerCase() === "production" ||
+    IS_RENDER
+  );
+}
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
@@ -1225,14 +1235,14 @@ app.post("/api/register/request-otp", async (req, res) => {
 
     let deliveryMode = "email";
     let deliveryMessage = `Verification code sent to ${maskEmailAddress(email)}`;
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProductionLike = isProductionLikeRuntime();
 
     try {
       if (isMailConfigured()) {
         await sendSignupOtpEmail({ email, otp, name });
       } else if (
         OTP_DEV_FALLBACK_ENABLED &&
-        (!isProduction || OTP_ALLOW_PRODUCTION_DEV_FALLBACK)
+        (!isProductionLike || OTP_ALLOW_PRODUCTION_DEV_FALLBACK)
       ) {
         deliveryMode = "console";
         deliveryMessage =
@@ -1246,7 +1256,7 @@ app.post("/api/register/request-otp", async (req, res) => {
     } catch (mailError) {
       const allowFallback =
         OTP_DEV_FALLBACK_ENABLED &&
-        (!isProduction || OTP_ALLOW_PRODUCTION_DEV_FALLBACK);
+        (!isProductionLike || OTP_ALLOW_PRODUCTION_DEV_FALLBACK);
 
       if (allowFallback) {
         deliveryMode = "console";
@@ -1287,7 +1297,7 @@ app.post("/api/register/request-otp", async (req, res) => {
       maskedEmail: maskEmailAddress(email),
       expiresInMinutes: OTP_EXPIRY_MINUTES,
       deliveryMode,
-      devOtp: deliveryMode === "console" && !isProduction ? otp : undefined,
+      devOtp: deliveryMode === "console" && !isProductionLike ? otp : undefined,
     });
   } catch (error) {
     console.error("Signup OTP request error:", error);
