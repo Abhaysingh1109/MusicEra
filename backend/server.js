@@ -1271,20 +1271,33 @@ app.post("/api/register/request-otp", async (req, res) => {
           insertResult.rows[0].id,
         ]);
         const rawError = String(mailError?.message || "");
+        const rawCode = String(mailError?.code || "").toUpperCase();
         const authError =
-          /invalid login|username and password not accepted|auth|535/i.test(
+          /invalid login|username and password not accepted|auth|535|5\.7\.8|app password|application-specific password|missing credentials|invalid credentials|authentication unsuccessful/i.test(
             rawError,
           );
-        const timeoutError = /timed out|timeout|etimedout|esocket/i.test(
-          rawError,
-        );
+        const timeoutError =
+          /timed out|timeout|etimedout|esocket/i.test(rawError) ||
+          ["ETIMEDOUT", "ESOCKET"].includes(rawCode);
+        const senderError =
+          /mail from command failed|sender address rejected|from address/i.test(
+            rawError,
+          ) || ["EENVELOPE"].includes(rawCode);
+        const dnsOrNetworkError =
+          /enotfound|eai_again|getaddrinfo|network|connection refused/i.test(
+            rawError,
+          ) || ["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED"].includes(rawCode);
 
         throw new Error(
           authError
             ? "Email authentication failed. Verify SMTP_USER and SMTP_PASS (use Gmail App Password) in Render environment variables."
             : timeoutError
               ? "Email delivery timed out. Please retry in a minute. If it continues, verify SMTP credentials/network on Render."
-              : "Email delivery failed. Verify SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS and MAIL_FROM on Render.",
+              : senderError
+                ? 'Email sender address rejected. Set MAIL_FROM like "MusicEra <your_email@gmail.com>" and ensure it matches your SMTP account/domain policy.'
+                : dnsOrNetworkError
+                  ? "Email host/network lookup failed. Verify SMTP_HOST/SMTP_PORT and outbound network access from Render."
+                  : "Email delivery failed. Verify SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS and MAIL_FROM on Render.",
         );
       }
     }
