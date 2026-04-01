@@ -13,7 +13,7 @@ services:
       - key: PYTHON_BIN
         value: python3
       - key: ML_FEATURES_ENABLED
-        value: "false"
+        value: "true"
       - key: DATABASE_URL
         sync: false
       - key: PGHOST
