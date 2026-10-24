@@ -46,6 +46,8 @@ const ML_FEATURES_ENABLED = isTruthyEnv(
 const PYTHON_ISOLATED_ENV = isTruthyEnv(
   process.env.PYTHON_ISOLATED_ENV || (IS_RENDER ? "true" : "false"),
 );
+// Face authentication is temporarily disabled.
+const FACE_AUTH_ENABLED = false;
 
 function pythonHasDeepFace(pythonBin) {
   if (!ML_FEATURES_ENABLED) {
@@ -187,13 +189,14 @@ app.get("/health", (_req, res) => {
 });
 
 app.get("/api/capabilities", (_req, res) => {
-  const faceLoginEnabled = ML_FEATURES_ENABLED && FACE_AUTH_AVAILABLE;
+  const faceLoginEnabled =
+    FACE_AUTH_ENABLED && ML_FEATURES_ENABLED && FACE_AUTH_AVAILABLE;
 
-  let faceLoginReason = "Face login is enabled.";
-  if (!ML_FEATURES_ENABLED) {
+  let faceLoginReason = "Face login is temporarily disabled.";
+  if (FACE_AUTH_ENABLED && !ML_FEATURES_ENABLED) {
     faceLoginReason =
       "Face login is disabled on this deployment (ML features are turned off).";
-  } else if (!FACE_AUTH_AVAILABLE) {
+  } else if (FACE_AUTH_ENABLED && !FACE_AUTH_AVAILABLE) {
     faceLoginReason = "Face login dependencies are unavailable on this server.";
   }
 
@@ -1623,6 +1626,10 @@ function ensureFaceAuthWorker() {
 }
 
 async function runPythonFaceEmbedding(imagePaths = []) {
+  if (!FACE_AUTH_ENABLED) {
+    throw new Error("FACE_AUTH_DISABLED: Face authentication is disabled.");
+  }
+
   if (!FACE_AUTH_AVAILABLE) {
     const refreshedPythonBin = resolvePythonBin();
     const refreshedAvailability = pythonHasDeepFace(refreshedPythonBin);
@@ -3254,7 +3261,7 @@ async function startServer() {
   console.log(`🧠 ML features enabled: ${ML_FEATURES_ENABLED ? "yes" : "no"}`);
   console.log(`🧪 Python isolated env: ${PYTHON_ISOLATED_ENV ? "yes" : "no"}`);
   console.log(`🧪 DeepFace available: ${FACE_AUTH_AVAILABLE ? "yes" : "no"}`);
-  if (ML_FEATURES_ENABLED && !FACE_AUTH_AVAILABLE) {
+  if (FACE_AUTH_ENABLED && ML_FEATURES_ENABLED && !FACE_AUTH_AVAILABLE) {
     console.warn(
       "⚠️ Face authentication is disabled: missing Python dependency 'deepface'.",
     );
@@ -3267,11 +3274,13 @@ async function startServer() {
     } catch (error) {
       console.error("⚠️ Emotion worker warmup failed:", error.message);
     }
-    try {
-      console.log("🛡️ Warming face auth worker...");
-      await ensureFaceAuthWorker();
-    } catch (error) {
-      console.error("⚠️ Face auth worker warmup failed:", error.message);
+    if (FACE_AUTH_ENABLED) {
+      try {
+        console.log("🛡️ Warming face auth worker...");
+        await ensureFaceAuthWorker();
+      } catch (error) {
+        console.error("⚠️ Face auth worker warmup failed:", error.message);
+      }
     }
   } else {
     console.log("🧩 ML workers skipped (ML_FEATURES_ENABLED=false)");
