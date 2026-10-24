@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link
@@ -107,7 +107,7 @@
       }
 
       .emotion-title {
-        font-family: "Playfair Display", serif;
+        font-family: "Cormorant Garamond", serif;
         font-size: 3rem;
         background: linear-gradient(135deg, var(--primary), var(--secondary));
         -webkit-background-clip: text;
@@ -219,7 +219,7 @@
       }
 
       .emotion-card h3 {
-        font-family: "Playfair Display", serif;
+        font-family: "Cormorant Garamond", serif;
         font-size: 1.8rem;
         margin-bottom: 15px;
         color: white;
@@ -291,7 +291,7 @@
       .emotion-modal-header h2 {
         margin: 0 0 8px;
         color: white;
-        font-family: "Playfair Display", serif;
+        font-family: "Cormorant Garamond", serif;
         font-size: 2rem;
       }
 
@@ -978,6 +978,253 @@
         }
       }
 
+      /* Live camera view: keep the preview and results balanced in the viewport. */
+      #emotionModal {
+        padding: clamp(10px, 2.5vw, 28px);
+        background: rgba(5, 8, 18, 0.88);
+        backdrop-filter: blur(16px);
+      }
+
+      #emotionModal .emotion-modal-panel {
+        width: min(1120px, 100%);
+        max-height: min(90dvh, 860px);
+        padding: clamp(18px, 2.8vw, 32px);
+        border-radius: 24px;
+        background: #11131b;
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
+      }
+
+      #emotionModal .emotion-modal-header {
+        align-items: center;
+        margin-bottom: 22px;
+      }
+
+      #emotionModal .emotion-modal-header h2 {
+        font-family: "DM Sans", sans-serif;
+        font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+        letter-spacing: -0.035em;
+        margin-bottom: 5px;
+      }
+
+      #emotionModal .emotion-modal-header p {
+        max-width: 620px;
+        font-size: 0.9rem;
+        line-height: 1.55;
+        color: rgba(255, 255, 255, 0.62);
+      }
+
+      #emotionModal .emotion-close-btn {
+        flex: 0 0 42px;
+        width: 42px;
+        height: 42px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: background 160ms ease, border-color 160ms ease;
+      }
+
+      #emotionModal .emotion-close-btn:hover {
+        background: rgba(255, 255, 255, 0.18);
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+
+      #emotionModal .emotion-modal-body {
+        grid-template-columns: minmax(0, 1.15fr) minmax(290px, 0.85fr);
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      #emotionModal .camera-panel,
+      #emotionModal .results-panel {
+        min-width: 0;
+        border-radius: 18px;
+        background: #191b25;
+        border: 1px solid rgba(255, 255, 255, 0.075);
+      }
+
+      #emotionModal .camera-panel {
+        padding: 12px;
+      }
+
+      #emotionModal .camera-frame {
+        aspect-ratio: 4 / 3;
+        max-height: min(56dvh, 520px);
+        min-height: 230px;
+        border-radius: 13px;
+        background: #090a10;
+      }
+
+      #emotionModal .camera-frame video {
+        object-fit: cover;
+        transform: scaleX(-1);
+      }
+
+      #emotionModal .camera-overlay {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 13px;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+      }
+
+      #emotionModal .camera-guidance {
+        margin: 12px 4px 2px;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.58);
+      }
+
+      #emotionModal .results-panel {
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+      }
+
+      #emotionModal .status-chip {
+        align-self: flex-start;
+        max-width: 100%;
+        padding: 7px 11px;
+        margin-bottom: 18px;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        background: rgba(255, 255, 255, 0.055);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      #emotionModal .status-chip span {
+        overflow-wrap: anywhere;
+      }
+
+      #emotionModal .dominant-emotion {
+        font-size: clamp(1.45rem, 2.5vw, 1.9rem);
+        letter-spacing: -0.035em;
+      }
+
+      #emotionModal .emotion-helper {
+        margin-bottom: 18px;
+        font-size: 0.84rem;
+        line-height: 1.55;
+        color: rgba(255, 255, 255, 0.58);
+      }
+
+      #emotionModal .emotion-lines {
+        gap: 8px;
+      }
+
+      #emotionModal .emotion-line {
+        padding: 10px 12px;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.035);
+        border-color: rgba(255, 255, 255, 0.055);
+      }
+
+      #emotionModal .emotion-line-header {
+        margin-bottom: 7px;
+        font-size: 0.83rem;
+      }
+
+      #emotionModal .emotion-bar {
+        height: 5px;
+      }
+
+      #emotionModal .emotion-actions {
+        margin-top: auto;
+        padding-top: 18px;
+        gap: 9px;
+      }
+
+      #emotionModal .emotion-action-btn {
+        min-height: 44px;
+        padding: 11px 16px;
+        font-size: 0.88rem;
+        transition: filter 160ms ease, background 160ms ease;
+      }
+
+      #emotionModal .emotion-action-btn:hover {
+        filter: brightness(1.12);
+      }
+
+      #emotionModal .emotion-action-btn.secondary {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      @media (max-width: 760px) {
+        #emotionModal {
+          align-items: flex-start;
+          overflow-y: auto;
+          padding: 10px;
+        }
+
+        #emotionModal .emotion-modal-panel {
+          width: min(560px, 100%);
+          max-height: calc(100dvh - 20px);
+          margin: auto 0;
+          padding: 16px;
+          border-radius: 18px;
+        }
+
+        #emotionModal .emotion-modal-header {
+          margin-bottom: 14px;
+          gap: 12px;
+        }
+
+        #emotionModal .emotion-modal-header p {
+          font-size: 0.82rem;
+        }
+
+        #emotionModal .emotion-modal-body {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 12px;
+        }
+
+        #emotionModal .camera-panel {
+          padding: 9px;
+        }
+
+        #emotionModal .camera-frame {
+          aspect-ratio: 16 / 10;
+          min-height: 0;
+          max-height: min(35dvh, 320px);
+        }
+
+        #emotionModal .camera-guidance {
+          font-size: 0.76rem;
+        }
+
+        #emotionModal .results-panel {
+          padding: 15px;
+        }
+
+        #emotionModal .status-chip {
+          margin-bottom: 11px;
+        }
+
+        #emotionModal .emotion-helper {
+          margin-bottom: 12px;
+        }
+
+        #emotionModal .emotion-actions {
+          padding-top: 13px;
+        }
+      }
+
+      @media (max-width: 420px) {
+        #emotionModal .emotion-modal-panel {
+          padding: 12px;
+        }
+
+        #emotionModal .camera-frame {
+          aspect-ratio: 4 / 3;
+          max-height: 28dvh;
+        }
+
+        #emotionModal .emotion-actions {
+          flex-direction: column;
+        }
+
+        #emotionModal .emotion-action-btn {
+          width: 100%;
+          flex: 0 0 auto;
+        }
+      }
+
       /* Recommendation Modal Styles */
       .recommendation-modal-panel {
         width: min(900px, 100%);
@@ -1003,7 +1250,7 @@
       }
 
       .recommendation-title {
-        font-family: "Playfair Display", serif;
+        font-family: "Cormorant Garamond", serif;
         font-size: 2.5rem;
         color: white;
         margin: 20px 0;
@@ -1167,6 +1414,7 @@
         font-size: 0.95rem;
       }
     </style>
+    <link rel="stylesheet" href="theme.css?v=20261024-classy" />
   </head>
   <body class="has-navbar">
     <!-- Navbar - Embedded for static compatibility -->

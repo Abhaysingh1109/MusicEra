@@ -1,3 +1,5 @@
+// Face authentication is temporarily disabled.
+const FACE_AUTH_ENABLED = false;
 const FACE_AUTH_API_BASE = String(
   window.MUSICERA_API_BASE ||
     localStorage.getItem("MUSICERA_API_BASE") ||
@@ -625,6 +627,10 @@ async function openFaceAuthModal(setupButton) {
 }
 
 function initFaceAuthMenu() {
+  if (!FACE_AUTH_ENABLED) {
+    return;
+  }
+
   const userData = getStoredUserData();
   if (!userData?.name || userData?.hasFace) {
     return;
